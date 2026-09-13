@@ -12,3 +12,8 @@ __pycache__/*
 
 __pycache__/
 *.py[cod]
+
+# Personal artifacts and scratch work stay on this machine.
+/outputs/
+/work/
+.DS_Store

@@ -51,6 +51,14 @@ characters = client.game_characters()
 
 `requests`-HTTP-Fehler werden absichtlich an den Aufrufer weitergegeben, damit eine spätere API/MCP-Schicht Statuscodes korrekt abbilden kann. `MSFAPIError` kennzeichnet unerwartete JSON-Strukturen. Der Client persistiert keine persönlichen Daten.
 
+## Lokale Arbeitsdateien
+
+Persönliche Roadmaps, Roster-Auswertungen und andere private Ergebnisse gehören
+in `outputs/`. Temporäre Arbeitsdateien gehören in `work/`. Beide Ordner sind
+durch `.gitignore` ausgeschlossen und bleiben lokal; sie werden nicht mit dem
+Repository veröffentlicht. Für diese Dateien bei Bedarf eine lokale Sicherung
+außerhalb von GitHub anlegen.
+
 ## Entwicklung
 
 ```bash
