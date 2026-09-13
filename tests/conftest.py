@@ -9,6 +9,7 @@ from msf_assistant.config import Settings
 def settings() -> Settings:
     return Settings(
         client_id="client-id",
+        client_secret="test-client-secret",
         api_key="api-key",
         redirect_uri="http://localhost/callback",
         request_timeout=12.5,

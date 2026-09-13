@@ -15,7 +15,7 @@ Ein schlanker, synchroner Python-Client, über den eine spätere API- oder MCP-S
 
 - Python 3.12 oder neuer
 - eine im MSF Developer Portal registrierte Anwendung
-- Client-ID und API-Key dieser Anwendung
+- Client-ID und Client-Secret dieser Anwendung (Typ **Server-Side**)
 
 ```bash
 python -m venv .venv
@@ -24,7 +24,31 @@ python -m pip install -e '.[dev]'
 cp .env.example .env
 ```
 
-Anschließend `MSF_CLIENT_ID`, `MSF_API_KEY` und die beim Developer Portal registrierte `MSF_REDIRECT_URI` in `.env` eintragen. `.env` wird durch Git ignoriert; Tokens sollten nicht in Dateien, Logs oder Quellcode geschrieben werden.
+Anschließend `MSF_CLIENT_ID`, `MSF_CLIENT_SECRET` und die beim Developer Portal
+registrierte `MSF_REDIRECT_URI` in `.env` eintragen. Für die lokale Entwicklung
+ist `http://localhost:8000/oauth/callback` vorgesehen. Im Portal entspricht das
+der Domain `localhost:8000`, dem Redirect-Pfad `/oauth/callback` und deaktiviertem
+HTTPS. Ein Callback-Server und die beim Portal angegebene Datenschutzseite
+müssen noch ergänzt werden; die Adresse allein startet keinen Login.
+
+Ein persönlicher API-Key muss nicht beantragt werden: Die
+[offizielle MSF-API-Spezifikation](https://developer.marvelstrikeforce.com/beta/msf-api.json)
+veröffentlicht einen gemeinsamen Wert für den erforderlichen `x-api-key`-Header.
+Der Client verwendet diesen standardmäßig. `MSF_API_KEY` bleibt als optionaler
+Override verfügbar, falls MSF den öffentlichen Wert ändert. Ein leeres Feld
+verwendet ebenfalls den Standard. Dieser öffentliche Wert ersetzt weder
+Client-Secret noch den persönlichen OAuth-Token.
+
+Das Client-Secret wird beim Token-Austausch und Refresh per HTTP Basic
+Authentication verwendet (`client_secret_basic`). Diese Methode wird in den
+[OAuth-Metadaten von MSF](https://hydra-public.prod.m3.scopelypv.com/.well-known/openid-configuration)
+als unterstützt aufgeführt. Sie muss auch zur Registrierung der Anwendung
+passen; ein erfolgreicher echter Login wurde noch nicht geprüft.
+Das Secret wird nicht in die Browser-Anmelde-URL oder die API-Header aufgenommen.
+Token-Anfragen folgen keinen HTTP-Weiterleitungen.
+
+`.env` und gängige Backup-/Editor-Dateien werden durch Git ignoriert. Zugangsdaten
+und Tokens dürfen nicht in Logs, Quellcode oder GitHub landen.
 
 ## Verwendung
 

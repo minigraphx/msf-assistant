@@ -27,6 +27,7 @@ def test_client_configures_authentication_headers(settings, session) -> None:
     MSFAPIClient(settings, "secret-token", session)
     assert session.headers["Authorization"] == "Bearer secret-token"
     assert session.headers["x-api-key"] == "api-key"
+    assert settings.client_secret not in str(session.headers)
 
 
 def test_characters_are_paginated(client, session) -> None:
