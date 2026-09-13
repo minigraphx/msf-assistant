@@ -39,6 +39,23 @@ def test_characters_are_paginated(client, session) -> None:
     assert session.get.call_args_list[1].kwargs["params"]["page"] == 2
 
 
+def test_characters_default_to_safe_ten_row_pages_and_preserve_all_rows(client, session) -> None:
+    first_page = [{"id": f"character-{index}"} for index in range(10)]
+    final_page = [{"id": "character-10"}]
+    session.get.return_value.json.side_effect = [
+        {"data": first_page},
+        {"data": final_page},
+    ]
+
+    assert client.game_characters() == [*first_page, *final_page]
+    assert [
+        call.kwargs["params"] for call in session.get.call_args_list
+    ] == [
+        {"abilityKits": "full", "page": 1, "perPage": 10},
+        {"abilityKits": "full", "page": 2, "perPage": 10},
+    ]
+
+
 def test_invalid_json_is_wrapped(client, session) -> None:
     session.get.return_value.json.side_effect = requests.exceptions.JSONDecodeError(
         "bad json", "x", 0

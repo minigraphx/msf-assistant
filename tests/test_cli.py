@@ -22,7 +22,7 @@ def environment(monkeypatch, tmp_path, settings):
     api = Mock()
     api.player_profile.return_value = {"data": {"name": "Test Commander"}}
     api.player_roster.return_value = {"data": [{"id": "TestCharacter"}]}
-    api.inventory.return_value = {"data": {"gold": 123}}
+    api.inventory.return_value = {"data": [{"item": "gold", "quantity": 123}]}
     monkeypatch.setattr(cli, "MSFAPIClient", Mock(return_value=api))
     token = TokenSet("private-access", refresh_token="private-refresh")
     login = Mock(return_value=token)
@@ -109,10 +109,7 @@ def test_logout_deletes_only_local_tokens(environment):
 
 def test_logout_ignores_server_credentials_and_timeout(monkeypatch, tmp_path):
     env_file = tmp_path / ".env"
-    env_file.write_text(
-        "MSF_CLIENT_ID=dotenv-client\n"
-        "MSF_REQUEST_TIMEOUT=not-a-number\n"
-    )
+    env_file.write_text("MSF_CLIENT_ID=dotenv-client\nMSF_REQUEST_TIMEOUT=not-a-number\n")
     store = Mock()
     factory = Mock(return_value=store)
     monkeypatch.setattr(cli, "KeychainTokenStore", factory)
@@ -148,3 +145,99 @@ def test_failed_write_leaves_no_partial_file(monkeypatch, tmp_path):
         cli.write_snapshot(output, {"profile": {}})
     assert output.read_text() == "previous snapshot"
     assert list(tmp_path.iterdir()) == [output]
+
+
+def test_sync_can_include_character_catalogue(environment):
+    api, _, _, _, _, output = environment
+    api.game_characters.return_value = [{"id": "TestCharacter", "name": "Test Character"}]
+    assert cli.main(["sync", "--characters", "--output", str(output)]) == 0
+    payload = json.loads(output.read_text())
+    assert payload["characters"] == api.game_characters.return_value
+    assert payload["characters_retrieved_at"]
+
+
+def test_character_failure_preserves_snapshot(environment):
+    api, _, _, _, _, output = environment
+    output.parent.mkdir()
+    output.write_text("previous")
+    api.game_characters.side_effect = requests.HTTPError("private")
+    assert cli.main(["sync", "--characters", "--output", str(output)]) == 1
+    assert output.read_text() == "previous"
+
+
+def test_malformed_success_response_preserves_previous_snapshot(environment, capsys):
+    api, _, _, _, _, output = environment
+    output.parent.mkdir()
+    previous = b'{"valid": "previous snapshot"}\n'
+    output.write_bytes(previous)
+    api.player_roster.return_value = {"data": [{"power": 100}]}
+
+    assert cli.main(["sync", "--output", str(output)]) == 1
+
+    assert output.read_bytes() == previous
+    assert "malformed" not in capsys.readouterr().err.lower()
+
+
+def test_ordinary_sync_preserves_valid_previous_catalogue(environment):
+    _, _, _, _, _, output = environment
+    output.parent.mkdir()
+    old_catalogue_time = "2026-09-10T12:00:00+00:00"
+    output.write_text(
+        json.dumps(
+            {
+                "profile": {"data": {"name": "Old"}},
+                "roster": {"data": [{"id": "TestCharacter"}]},
+                "inventory": {"data": []},
+                "retrieved_at": "2026-09-11T12:00:00+00:00",
+                "characters": [{"id": "TestCharacter", "name": "Test Character"}],
+                "characters_retrieved_at": old_catalogue_time,
+            }
+        )
+    )
+
+    assert cli.main(["sync", "--output", str(output)]) == 0
+
+    payload = json.loads(output.read_text())
+    assert payload["characters"] == [{"id": "TestCharacter", "name": "Test Character"}]
+    assert payload["characters_retrieved_at"] == old_catalogue_time
+
+
+def test_ordinary_sync_ignores_malformed_previous_catalogue(environment):
+    _, _, _, _, _, output = environment
+    output.parent.mkdir()
+    output.write_text(
+        json.dumps(
+            {
+                "characters": [{"name": "Missing ID"}],
+                "characters_retrieved_at": "not-a-timestamp",
+            }
+        )
+    )
+
+    assert cli.main(["sync", "--output", str(output)]) == 0
+
+    payload = json.loads(output.read_text())
+    assert "characters" not in payload
+    assert "characters_retrieved_at" not in payload
+
+
+def test_status_and_mcp_config_need_no_credentials(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli.Settings, "from_env", Mock(side_effect=AssertionError("no secrets")))
+    assert cli.main(["status", "--snapshot", str(tmp_path / "missing")]) == 0
+    assert json.loads(capsys.readouterr().out)["available"] is False
+    assert cli.main(["mcp-config", "--snapshot", str(tmp_path / "missing")]) == 0
+    config = json.loads(capsys.readouterr().out)["mcpServers"]["msf-assistant"]
+    assert os.path.isabs(config["command"])
+    assert "serve" in config["args"]
+    assert "secret" not in str(config)
+
+
+def test_operation_lock_rejects_concurrent_writer(tmp_path):
+    from msf_assistant.operation_lock import operation_lock
+
+    with (
+        operation_lock(tmp_path / ".env"),
+        pytest.raises(cli.SyncError, match="läuft bereits"),
+        operation_lock(tmp_path / ".env"),
+    ):
+        pytest.fail("Second writer entered")

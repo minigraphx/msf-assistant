@@ -18,11 +18,9 @@ from msf_assistant.auth import MSFOAuth2, TokenSet
 from msf_assistant.client import MSFAPIClient, MSFAPIError
 from msf_assistant.config import Settings
 from msf_assistant.login import LoginError, browser_login
+from msf_assistant.operation_lock import SyncError, operation_lock
+from msf_assistant.snapshot import SnapshotError, validate_snapshot
 from msf_assistant.token_store import KeychainTokenStore, TokenStoreError
-
-
-class SyncError(RuntimeError):
-    """A safe-to-display resource download failure."""
 
 
 def write_snapshot(output: Path, payload: dict[str, Any]) -> None:
@@ -50,7 +48,9 @@ def write_snapshot(output: Path, payload: dict[str, Any]) -> None:
             Path(temporary).unlink(missing_ok=True)
 
 
-def fetch_snapshot(settings: Settings, tokens: TokenSet, output: Path) -> None:
+def fetch_snapshot(
+    settings: Settings, tokens: TokenSet, output: Path, *, characters: bool = False
+) -> None:
     """Fetch all resources before replacing an existing snapshot."""
     payload: dict[str, Any] = {}
     with requests.Session() as session:
@@ -67,7 +67,37 @@ def fetch_snapshot(settings: Settings, tokens: TokenSet, output: Path) -> None:
                     f"MSF-Abruf für {name} fehlgeschlagen. Freigabe und Verbindung prüfen; "
                     "bei abgelaufener Anmeldung login erneut starten."
                 ) from None
+        if characters:
+            try:
+                payload["characters"] = client.game_characters()
+                payload["characters_retrieved_at"] = datetime.now(UTC).isoformat()
+            except (requests.RequestException, MSFAPIError):
+                raise SyncError(
+                    "Charakterdaten konnten nicht geladen werden. Erneut sync versuchen."
+                ) from None
     payload["retrieved_at"] = datetime.now(UTC).isoformat()
+    try:
+        validate_snapshot(payload)
+    except SnapshotError:
+        raise SyncError(
+            "Geladene MSF-Daten waren unvollständig. Vorherige Daten bleiben erhalten."
+        ) from None
+    # Keep a previously fetched catalogue when only updating personal data.
+    if not characters and output.exists():
+        try:
+            previous = json.loads(output.read_text(encoding="utf-8"))
+            if isinstance(previous, dict) and isinstance(previous.get("characters"), list):
+                candidate = {
+                    **payload,
+                    "characters": previous["characters"],
+                    "characters_retrieved_at": previous.get("characters_retrieved_at"),
+                }
+                validate_snapshot(candidate)
+                payload = candidate
+        except SnapshotError:
+            pass
+        except (ValueError, OSError):
+            pass
     write_snapshot(output, payload)
 
 
@@ -99,6 +129,7 @@ def _parser() -> argparse.ArgumentParser:
     login.add_argument("--timeout", type=float, default=300, help="Anmeldefrist in Sekunden")
     sync = commands.add_parser("sync", help="Gespeicherte Anmeldung nutzen und Daten aktualisieren")
     for command in (login, sync):
+        command.add_argument("--characters", action="store_true", help="Charakterkatalog mitladen")
         command.add_argument(
             "--output",
             type=Path,
@@ -106,11 +137,21 @@ def _parser() -> argparse.ArgumentParser:
             help="Private lokale JSON-Ausgabedatei",
         )
     commands.add_parser("logout", help="Lokale Tokens aus dem macOS-Schlüsselbund entfernen")
+    for name, help_text in (
+        ("status", "Verfügbarkeit und Alter der lokalen Daten anzeigen"),
+        ("serve", "Privaten MCP-Server über stdio starten"),
+        ("mcp-config", "Lokale MCP-Verbindungskonfiguration als JSON ausgeben"),
+    ):
+        command = commands.add_parser(name, help=help_text)
+        command.add_argument("--snapshot", type=Path, default=Path("outputs/msf-snapshot.json"))
+        if name in ("serve", "mcp-config"):
+            command.add_argument(
+                "--read-only", action="store_true", help="Ohne Aktualisierungswerkzeug"
+            )
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+def _account_command(args: argparse.Namespace) -> int:
     if args.command == "logout":
         try:
             client_id, oauth_base_url = Settings.token_store_identity_from_env(args.env_file)
@@ -157,7 +198,7 @@ def main(argv: list[str] | None = None) -> int:
                     "Keine gespeicherte Anmeldung. Zuerst msf-assistant login starten."
                 )
             tokens = _refresh(settings, tokens, store)
-        fetch_snapshot(settings, tokens, args.output)
+        fetch_snapshot(settings, tokens, args.output, characters=args.characters)
         print(f"Profil, Roster und Inventar gespeichert: {args.output.resolve()}")
         return 0
     except (LoginError, TokenStoreError, SyncError) as exc:
@@ -171,4 +212,73 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("Anmeldung abgebrochen.", file=sys.stderr)
         return 130
+    return 1
+
+
+def sync_saved(env_file: Path, output: Path) -> None:
+    """MCP refresh path: no console output, no caller-controlled credentials or URLs."""
+    with operation_lock(env_file):
+        settings = Settings.from_env(str(env_file))
+        store = KeychainTokenStore(settings.client_id, settings.oauth_base_url)
+        tokens = store.load()
+        if tokens is None:
+            raise LoginError("Keine gespeicherte Anmeldung. Zuerst login ausführen.")
+        tokens = _refresh(settings, tokens, store)
+        fetch_snapshot(settings, tokens, output, characters=True)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    try:
+        if args.command in ("login", "sync", "logout"):
+            with operation_lock(Path(args.env_file)):
+                return _account_command(args)
+        if args.command == "mcp-config":
+            command = [
+                "-m",
+                "msf_assistant",
+                "--env-file",
+                str(Path(args.env_file).resolve()),
+                "serve",
+                "--snapshot",
+                str(args.snapshot.resolve()),
+            ]
+            if args.read_only:
+                command.append("--read-only")
+            print(
+                json.dumps(
+                    {
+                        "mcpServers": {
+                            "msf-assistant": {
+                                "command": str(Path(sys.executable).absolute()),
+                                "args": command,
+                            }
+                        }
+                    },
+                    indent=2,
+                )
+            )
+            return 0
+        from msf_assistant.snapshot import SnapshotReader
+
+        if args.command == "status":
+            print(json.dumps(SnapshotReader(args.snapshot).status(), indent=2))
+            return 0
+        try:
+            from msf_assistant.mcp_server import create_server
+        except ImportError:
+            print(
+                "MCP-Paket fehlt. Mit pip install -e '.[mcp,local]' installieren.", file=sys.stderr
+            )
+            return 1
+        env_file, snapshot = Path(args.env_file).resolve(), args.snapshot.resolve()
+        refresh = None if args.read_only else lambda: sync_saved(env_file, snapshot)
+        create_server(snapshot, refresh=refresh).run(transport="stdio")
+        return 0
+    except SyncError as exc:
+        print(str(exc), file=sys.stderr)
+    except KeyboardInterrupt:
+        return 130
+    except Exception:
+        print("Lokale Aktion fehlgeschlagen. Konfiguration und Datendatei prüfen.", file=sys.stderr)
     return 1

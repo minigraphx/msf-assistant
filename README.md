@@ -1,8 +1,8 @@
 # MSF Assistant
 
-Ein schlanker, synchroner Python-Client mit lokalem Browser-Login und privaten
-Datenauszügen. Eine spätere API- oder MCP-Schicht kann darüber auf den persönlichen
-Marvel-Strike-Force-Account zugreifen. Dieses Repository enthält **keine**
+Dein persönlicher Marvel-Strike-Force-Assistent mit OAuth-Anmeldung, sicherer
+Token-Ablage und einer einsatzbereiten MCP-Schnittstelle für KI-Anwendungen.
+Die Daten stammen aus deinem Account und werden lokal zwischengespeichert. Dieses Repository enthält **keine**
 Chat-Oberfläche, LLM-Anbindung, Agenten oder Datenbank.
 
 ## Funktionsumfang
@@ -15,7 +15,9 @@ Chat-Oberfläche, LLM-Anbindung, Agenten oder Datenbank.
 - injizierbare HTTP-Session, Timeouts, HTTP-Fehler und validierte JSON-Antworten
 - lokale Befehle für Browser-Login, Datenaktualisierung und Logout
 - OAuth-Tokens im macOS-Schlüsselbund; optional einmaliger Abruf ohne Speicherung
-- private JSON-Datei mit Profil, Roster und Inventar
+- private JSON-Datei mit Profil, Roster, Inventar und optional Charakterkatalog
+- MCP-Abfragen mit Suche, Seitenaufteilung, Datenalter und expliziter Aktualisierung
+- lokale MCP-Konfiguration und Anleitung für die private ChatGPT-Verbindung
 
 ## Voraussetzungen und Installation
 
@@ -26,7 +28,8 @@ Chat-Oberfläche, LLM-Anbindung, Agenten oder Datenbank.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[dev,local]'
+python -m pip install '.[local,mcp]'
+# Für Entwicklung stattdessen: python -m pip install -e '.[dev,local,mcp]'
 # Nur wenn .env noch nicht vorhanden ist:
 cp -n .env.example .env
 ```
@@ -120,6 +123,62 @@ gestartet wurde. Anfragen werden nicht protokolliert. Nach Erfolg, Fehler oder
 Ablauf wird der Server beendet. Die Datenschutzseite ist eine Beschreibung des
 lokalen Testbetriebs und wird nicht öffentlich gehostet.
 
+## MCP starten und verwenden
+
+Nach der einmaligen Anmeldung:
+
+```bash
+# Alle Daten einschließlich Charakterkatalog laden:
+python -m msf_assistant sync --characters
+# Datenstand und Anzahl der Einträge prüfen:
+python -m msf_assistant status
+# Verbindungskonfiguration mit absoluten Pfaden erzeugen:
+python -m msf_assistant mcp-config
+```
+
+Der MCP-Host startet `serve` als eigenen Prozess über stdio. Ein Serverstart im
+Terminal wartet deshalb auf Protokollnachrichten und zeigt keine Webseite an.
+Die JSON-Ausgabe von `mcp-config` enthält den richtigen Python-Pfad und kann in
+einen Host mit `mcpServers`-Konfiguration übernommen werden. Python aus der
+installierten virtuellen Umgebung verwenden. Die Konfiguration enthält keine
+Zugangsdaten. Für ausschließlich lesenden Zugriff `mcp-config --read-only`
+verwenden; damit entfällt auch das Aktualisierungswerkzeug.
+
+| Werkzeug | Ergebnis |
+| --- | --- |
+| `get_status` | Verfügbarkeit, Datenalter und Anzahl der Einträge |
+| `get_player_profile` | Profil, Level und Gesamtstärke |
+| `get_player_roster` | Eigene Charaktere, nach Stärke sortiert, mit Namenssuche |
+| `get_inventory` | Gegenstände und Mengen, mit Suche nach ID/Name |
+| `get_game_characters` | Kompakte Charakterübersicht mit Namenssuche |
+| `get_character` | Stammdaten und eigener Ausbau zu einer Charakter-ID |
+| `refresh_data` | Neue Daten von MSF abrufen und lokal speichern |
+
+Listen unterstützen `query`, `offset` und `limit` (1 bis 100). `total` und
+`next_offset` zeigen, ob weitere Treffer folgen. Antworten nennen den
+Abrufzeitpunkt; ab 24 Stunden gelten Datenauszüge als veraltet. Der
+Charakterkatalog hat einen eigenen Zeitstempel. Ein normales `sync` bewahrt ihn,
+`sync --characters` lädt ihn neu. Der Katalog wird in kleinen API-Seiten geladen,
+da MSF große Antworten mit vollständigen Fähigkeiten zurückweisen kann.
+
+`refresh_data` benötigt die gespeicherte Anmeldung und aktualisiert alle vier
+Datenbereiche. Es ändert keine Spielwerte und gibt keine Ressourcen aus, schreibt
+aber den lokalen Datenauszug und erneuert OAuth-Tokens. Deshalb ist es als
+Aktion gekennzeichnet. Bei Fehlern bleibt die bisherige Datei erhalten. Gleichzeitige
+Anmelde-/Aktualisierungs-/Logout-Vorgänge im selben Checkout werden abgewiesen;
+danach erneut versuchen. Für denselben Account nur einen aktiven Checkout verwenden.
+
+Beispielaufträge nach dem Verbinden:
+
+- „Wie alt sind meine MSF-Daten?"
+- „Zeige meine zehn stärksten Charaktere."
+- „Suche Wolverine und vergleiche seine Fähigkeiten mit meinem Ausbau."
+- „Aktualisiere meine MSF-Daten."
+
+Die App erfindet keine Meta-Ranglisten oder Upgrade-Empfehlungen. Sie liefert die
+vorliegenden Daten, auf denen der angebundene Assistent seine Antworten aufbauen kann.
+Für ChatGPT siehe [Verbindungsanleitung](docs/chatgpt-connection.md).
+
 ## Verwendung als Bibliothek
 
 Die Anwendung, die diesen Client einbindet, ist für Redirect und sichere Token-Ablage verantwortlich:
@@ -163,4 +222,6 @@ pytest
 ruff check .
 ```
 
-Die Client-Schicht ist unabhängig von einem Webframework. Eine zukünftige MCP- oder REST-Schicht kann `MSFOAuth2` und `MSFAPIClient` importieren, ohne UI- oder LLM-Abhängigkeiten mitzuladen.
+Die Client-Schicht ist unabhängig von einem Webframework. Der MCP-Adapter bleibt optional; die API-Bibliothek funktioniert auch ohne MCP-Paket.
+Die Tests verwenden synthetische Daten, prüfen OAuth, Dateisicherheit, Abfragen und
+den tatsächlichen MCP-Protokollablauf einschließlich eines separaten Serverprozesses.
