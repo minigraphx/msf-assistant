@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import parse_qs, quote_plus, urlencode, urlparse
 
@@ -22,10 +22,10 @@ class OAuthStateError(ValueError):
 class TokenSet:
     """Tokens returned by the MSF OAuth server."""
 
-    access_token: str
+    access_token: str = field(repr=False)
     token_type: str = "Bearer"
     expires_in: int | None = None
-    refresh_token: str | None = None
+    refresh_token: str | None = field(default=None, repr=False)
     scope: str | None = None
 
     @classmethod

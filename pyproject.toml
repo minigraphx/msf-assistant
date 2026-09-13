@@ -13,6 +13,10 @@ dependencies = ["python-dotenv>=1.0,<2", "requests>=2.32,<3"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3,<9", "pytest-cov>=5,<7", "ruff>=0.6,<1"]
+local = ["keyring>=25,<26"]
+
+[project.scripts]
+msf-assistant = "msf_assistant.cli:main"
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers --strict-config"

@@ -3,6 +3,8 @@
 .env~
 ..env.sw?
 !.env.example
+/.venv/
+/.pytest_cache/
 .pycache/*
 .ipynb/*
 .ipynb_checkpoints/*
