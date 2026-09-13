@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, quote_plus, urlencode, urlparse
 
 import requests
 
@@ -22,10 +22,10 @@ class OAuthStateError(ValueError):
 class TokenSet:
     """Tokens returned by the MSF OAuth server."""
 
-    access_token: str
+    access_token: str = field(repr=False)
     token_type: str = "Bearer"
     expires_in: int | None = None
-    refresh_token: str | None = None
+    refresh_token: str | None = field(default=None, repr=False)
     scope: str | None = None
 
     @classmethod
@@ -86,7 +86,6 @@ class MSFOAuth2:
         return self._token_request(
             {
                 "grant_type": "authorization_code",
-                "client_id": self.settings.client_id,
                 "code": code,
                 "redirect_uri": self.settings.redirect_uri,
             }
@@ -97,15 +96,20 @@ class MSFOAuth2:
         return self._token_request(
             {
                 "grant_type": "refresh_token",
-                "client_id": self.settings.client_id,
                 "refresh_token": refresh_token,
             }
         )
 
     def _token_request(self, data: dict[str, str]) -> TokenSet:
+        secret = self.settings.client_secret
+        if not secret or not secret.strip():
+            raise ValueError("MSF_CLIENT_SECRET is required for server-side OAuth")
         response = self.session.post(
             f"{self.settings.oauth_base_url}/token",
             data=data,
+            # OAuth Basic credentials are form-encoded before Base64 encoding.
+            auth=(quote_plus(self.settings.client_id), quote_plus(secret)),
+            allow_redirects=False,
             timeout=self.settings.request_timeout,
         )
         response.raise_for_status()

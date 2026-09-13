@@ -29,6 +29,7 @@ class MSFAPIClient:
         self.session.headers.update(
             {
                 "Accept": "application/json",
+                "User-Agent": "APIClient/1.0 (Server)",
                 "Authorization": f"Bearer {access_token}",
                 "x-api-key": settings.api_key,
             }
@@ -63,13 +64,13 @@ class MSFAPIClient:
         return self.get("player/v1/inventory")
 
     def game_characters(
-        self, *, ability_kits: str = "full", per_page: int = 100
+        self, *, ability_kits: str = "full", per_page: int = 10
     ) -> list[JsonObject]:
         """Fetch all pages of static game character data."""
         return list(self.iter_game_characters(ability_kits=ability_kits, per_page=per_page))
 
     def iter_game_characters(
-        self, *, ability_kits: str = "full", per_page: int = 100
+        self, *, ability_kits: str = "full", per_page: int = 10
     ) -> Iterator[JsonObject]:
         """Yield static characters while transparently traversing numbered pages."""
         if per_page < 1:
