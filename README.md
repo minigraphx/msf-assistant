@@ -1,35 +1,61 @@
-## MSF-Agents
+# MSF Assistant
 
-LLM + Agents + Langchain + MSF API + Neo4J KB + Streamlit - A hobby project with the learning of LLM Agents with a Knowledge graph.
+Ein schlanker, synchroner Python-Client, über den eine spätere API- oder MCP-Schicht auf den persönlichen Marvel-Strike-Force-Account zugreifen kann. Dieses Repository enthält bewusst **keine** Chat-Oberfläche, LLM-Anbindung, Agenten oder Datenbank.
 
-- Neo4J Agent and query in LLM more examples [Neo4j](https://neo4j.com/developer-blog/knowledge-graph-rag-application/)
-- Requires a Marvel Strike Force Web account to authenticate
-- A Neo4J Knowledge graph connection to store the data.
+## Funktionsumfang
 
-### Installation
+- OAuth2 Authorization Code Flow einschließlich `state`-Prüfung und Token-Refresh
+- Spielerprofil (`player/v1/card`)
+- Spielerkader (`player/v1/roster`)
+- Inventar (`player/v1/inventory`)
+- paginierte Charakter-Stammdaten (`game/v1/characters`)
+- injizierbare HTTP-Session, Timeouts, HTTP-Fehler und validierte JSON-Antworten
 
-Requires python >= 3.11, Neo4J credentials, OpenAI API key and MSF account.
+## Voraussetzungen und Installation
 
-- Install libraries via ```pip install -r requirements.txt```
-- Then add the .env variable as in ```.env.example```
-- A client ID for your own app at MSF
-- X-API-KEY available from the [MSF Dev Portal](https://developer.marvelstrikeforce.com/beta/index.html)
+- Python 3.12 oder neuer
+- eine im MSF Developer Portal registrierte Anwendung
+- Client-ID und API-Key dieser Anwendung
 
-### Usage
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+cp .env.example .env
+```
 
-- Run ```streamlit run app.py```
-- Authenticate first time and paste the redirected URL on the small text input
-- Once data loading completed, start querying!
+Anschließend `MSF_CLIENT_ID`, `MSF_API_KEY` und die beim Developer Portal registrierte `MSF_REDIRECT_URI` in `.env` eintragen. `.env` wird durch Git ignoriert; Tokens sollten nicht in Dateien, Logs oder Quellcode geschrieben werden.
 
-### KG Visualization
+## Verwendung
 
-A sample visualization of the current Knowledge graph with the fetched data
-![Knowledge Graph](img/visualisation.png "")
+Die Anwendung, die diesen Client einbindet, ist für Redirect und sichere Token-Ablage verantwortlich:
 
-### TODO:
-- RAG on descriptive data
-- More guided usecases on streamlit
-- Integrate other Cypher queries into tools
-- Extended API search
-- web crawl (optional) -> future feature
-- Simulate gamev -> future feature
+```python
+from msf_assistant import MSFAPIClient, MSFOAuth2, Settings
+
+settings = Settings.from_env()
+oauth = MSFOAuth2(settings)
+authorization_url, state = oauth.authorization_url()
+
+# authorization_url im Browser öffnen und anschließend den Callback verarbeiten.
+callback_url = "http://localhost:8000/oauth/callback?code=...&state=..."
+code = oauth.parse_callback(callback_url, expected_state=state)
+tokens = oauth.exchange_code(code)
+
+client = MSFAPIClient(settings, tokens.access_token)
+profile = client.player_profile()
+roster = client.player_roster()
+inventory = client.inventory()
+characters = client.game_characters()
+```
+
+`requests`-HTTP-Fehler werden absichtlich an den Aufrufer weitergegeben, damit eine spätere API/MCP-Schicht Statuscodes korrekt abbilden kann. `MSFAPIError` kennzeichnet unerwartete JSON-Strukturen. Der Client persistiert keine persönlichen Daten.
+
+## Entwicklung
+
+```bash
+pytest
+ruff check .
+```
+
+Die Client-Schicht ist unabhängig von einem Webframework. Eine zukünftige MCP- oder REST-Schicht kann `MSFOAuth2` und `MSFAPIClient` importieren, ohne UI- oder LLM-Abhängigkeiten mitzuladen.
