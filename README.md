@@ -39,6 +39,10 @@ Override verfügbar, falls MSF den öffentlichen Wert ändert. Ein leeres Feld
 verwendet ebenfalls den Standard. Dieser öffentliche Wert ersetzt weder
 Client-Secret noch den persönlichen OAuth-Token.
 
+Der API-Client sendet ausdrücklich den in der Dokumentation genannten
+`User-Agent: APIClient/1.0 (Server)`. Dafür ist kein zusätzlicher Eintrag in
+`.env` erforderlich.
+
 Das Client-Secret wird beim Token-Austausch und Refresh per HTTP Basic
 Authentication verwendet (`client_secret_basic`). Diese Methode wird in den
 [OAuth-Metadaten von MSF](https://hydra-public.prod.m3.scopelypv.com/.well-known/openid-configuration)

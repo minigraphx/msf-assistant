@@ -27,6 +27,7 @@ def test_client_configures_authentication_headers(settings, session) -> None:
     MSFAPIClient(settings, "secret-token", session)
     assert session.headers["Authorization"] == "Bearer secret-token"
     assert session.headers["x-api-key"] == "api-key"
+    assert session.headers["User-Agent"] == "APIClient/1.0 (Server)"
     assert settings.client_secret not in str(session.headers)
 
 

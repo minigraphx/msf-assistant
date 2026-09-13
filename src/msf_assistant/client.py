@@ -29,6 +29,7 @@ class MSFAPIClient:
         self.session.headers.update(
             {
                 "Accept": "application/json",
+                "User-Agent": "APIClient/1.0 (Server)",
                 "Authorization": f"Bearer {access_token}",
                 "x-api-key": settings.api_key,
             }
