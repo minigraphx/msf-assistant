@@ -6,4 +6,9 @@ data/*
 notebooks/*
 tmp/*
 __pycache__/*
-.vscode/*
+.vscode/*.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+__pycache__/
+*.py[cod]
