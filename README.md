@@ -3,7 +3,9 @@
 Dein persönlicher Marvel-Strike-Force-Assistent mit OAuth-Anmeldung, sicherer
 Token-Ablage und einer einsatzbereiten MCP-Schnittstelle für KI-Anwendungen.
 Die Daten stammen aus deinem Account und werden lokal zwischengespeichert. Dieses Repository enthält **keine**
-Chat-Oberfläche, LLM-Anbindung, Agenten oder Datenbank.
+Chat-Oberfläche oder eigene LLM-Anbindung. Der verbundene Assistent erhält
+einen Beratungsablauf und einen privaten, dauerhaften Speicher für Ziele,
+relevante Nutzerangaben und quellenbezogene Ausbaupläne.
 
 ## Funktionsumfang
 
@@ -18,6 +20,9 @@ Chat-Oberfläche, LLM-Anbindung, Agenten oder Datenbank.
 - private JSON-Datei mit Profil, Roster, Inventar und optional Charakterkatalog
 - MCP-Abfragen mit Suche, Seitenaufteilung, Datenalter und expliziter Aktualisierung
 - lokale MCP-Konfiguration und Anleitung für die private ChatGPT-Verbindung
+- dauerhaft gespeicherte Ziele, Nutzerangaben und Empfehlungen mit Herkunft und Datenstand
+- Beratungsanweisungen und MCP-Prompt für Rosterbezug, Quellenprüfung und konkrete Ausbaupläne
+- Korrekturen mit Schutz gegen gleichzeitiges Überschreiben und vollständiger Nur-Lesen-Modus
 
 ## Voraussetzungen und Installation
 
@@ -142,7 +147,10 @@ Die JSON-Ausgabe von `mcp-config` enthält den richtigen Python-Pfad und kann in
 einen Host mit `mcpServers`-Konfiguration übernommen werden. Python aus der
 installierten virtuellen Umgebung verwenden. Die Konfiguration enthält keine
 Zugangsdaten. Für ausschließlich lesenden Zugriff `mcp-config --read-only`
-verwenden; damit entfällt auch das Aktualisierungswerkzeug.
+verwenden; damit entfallen Aktualisierung und sämtliche Schreibwerkzeuge.
+Der Beratungskontext liegt standardmäßig neben dem Snapshot in
+`msf-advisor-context.json`. `serve` und `mcp-config` akzeptieren mit `--context`
+einen festen privaten Speicherort; spätere Starts müssen denselben Ort verwenden.
 
 | Werkzeug | Ergebnis |
 | --- | --- |
@@ -153,6 +161,11 @@ verwenden; damit entfällt auch das Aktualisierungswerkzeug.
 | `get_game_characters` | Kompakte Charakterübersicht mit Namenssuche |
 | `get_character` | Stammdaten und eigener Ausbau zu einer Charakter-ID |
 | `refresh_data` | Neue Daten von MSF abrufen und lokal speichern |
+| `get_advisor_context` | Gespeicherte Ziele, Nutzerangaben, Pläne und Revision lesen |
+| `save_goal` | Ziel vorschlagen, auswählen oder korrigieren |
+| `save_player_fact` | Relevante Angaben mit Herkunft speichern oder korrigieren |
+| `save_recommendation` | Ausbauplan mit Zielbezug, Roster-Stand und Quellen speichern |
+| `delete_advisor_record` | Auf Nutzerwunsch einen Kontexteintrag entfernen |
 
 Listen unterstützen `query`, `offset` und `limit` (1 bis 100). `total` und
 `next_offset` zeigen, ob weitere Treffer folgen. Antworten nennen den
@@ -175,9 +188,20 @@ Beispielaufträge nach dem Verbinden:
 - „Suche Wolverine und vergleiche seine Fähigkeiten mit meinem Ausbau."
 - „Aktualisiere meine MSF-Daten."
 
-Die App erfindet keine Meta-Ranglisten oder Upgrade-Empfehlungen. Sie liefert die
-vorliegenden Daten, auf denen der angebundene Assistent seine Antworten aufbauen kann.
-Für ChatGPT siehe [Verbindungsanleitung](docs/chatgpt-connection.md).
+Die Beratungsanweisungen führen den angebundenen Assistenten durch Rosterprüfung,
+aktuelle Recherche und Zielauswahl. Vorgesehen sind eine Hauptempfehlung und zwei
+Alternativen, danach ein konkreter Charakterplan mit Level, Ausrüstungsstufe und
+Priorität. Free-to-play ist Standard. Fehlende Event-Abschlüsse werden erfragt,
+statt sie aus Stärke abzuleiten. Ohne aktuelle Recherche wird keine aktuelle
+Meta behauptet. Die App selbst berechnet keine Ranglisten und enthält kein LLM.
+
+Der MCP-Prompt `plan_upgrades` nimmt eine konkrete Spielfrage entgegen. Der Ablauf
+wird außerdem bei der Server-Initialisierung übermittelt. Für den Einstieg siehe
+[Beratungsanleitung](docs/advisor-guide.md). Die
+[Verbindungsanleitung](docs/chatgpt-connection.md),
+[Datenabdeckung](docs/data-coverage.md) und
+[Abnahmecheckliste](docs/advisor-acceptance.md) halten auch die Grenzen fest.
+Eine erfolgreiche lokale Prüfung allein belegt keine bereits verbundene ChatGPT-Sitzung.
 
 ## Verwendung als Bibliothek
 

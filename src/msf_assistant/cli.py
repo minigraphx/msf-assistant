@@ -146,7 +146,14 @@ def _parser() -> argparse.ArgumentParser:
         command.add_argument("--snapshot", type=Path, default=Path("outputs/msf-snapshot.json"))
         if name in ("serve", "mcp-config"):
             command.add_argument(
-                "--read-only", action="store_true", help="Ohne Aktualisierungswerkzeug"
+                "--context",
+                type=Path,
+                help="Private lokale Beratungskontext-Datei (Standard: neben dem Snapshot)",
+            )
+            command.add_argument(
+                "--read-only",
+                action="store_true",
+                help="Ohne Aktualisierungs- oder Schreibwerkzeuge",
             )
     return parser
 
@@ -245,6 +252,8 @@ def main(argv: list[str] | None = None) -> int:
             ]
             if args.read_only:
                 command.append("--read-only")
+            if args.context is not None:
+                command.extend(("--context", str(args.context.absolute())))
             print(
                 json.dumps(
                     {
@@ -273,7 +282,10 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         env_file, snapshot = Path(args.env_file).resolve(), args.snapshot.resolve()
         refresh = None if args.read_only else lambda: sync_saved(env_file, snapshot)
-        create_server(snapshot, refresh=refresh).run(transport="stdio")
+        context = args.context.absolute() if args.context is not None else None
+        create_server(
+            snapshot, refresh=refresh, context_path=context, read_only=args.read_only
+        ).run(transport="stdio")
         return 0
     except SyncError as exc:
         print(str(exc), file=sys.stderr)

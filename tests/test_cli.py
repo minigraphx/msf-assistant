@@ -232,6 +232,56 @@ def test_status_and_mcp_config_need_no_credentials(tmp_path, monkeypatch, capsys
     assert "secret" not in str(config)
 
 
+def test_mcp_config_includes_fixed_context_and_read_only(tmp_path, capsys):
+    snapshot = tmp_path / "snapshot.json"
+    context = tmp_path / "advisor.json"
+    assert (
+        cli.main(
+            [
+                "mcp-config",
+                "--snapshot",
+                str(snapshot),
+                "--context",
+                str(context),
+                "--read-only",
+            ]
+        )
+        == 0
+    )
+    args = json.loads(capsys.readouterr().out)["mcpServers"]["msf-assistant"]["args"]
+    assert args[args.index("--context") + 1] == str(context.resolve())
+    assert "--read-only" in args
+
+
+def test_serve_passes_context_and_read_only_to_server(tmp_path, monkeypatch):
+    import msf_assistant.mcp_server
+
+    server = Mock()
+    create_server = Mock(return_value=server)
+    monkeypatch.setattr(msf_assistant.mcp_server, "create_server", create_server)
+    snapshot = tmp_path / "snapshot.json"
+    context = tmp_path / "advisor.json"
+
+    assert (
+        cli.main(
+            [
+                "serve",
+                "--snapshot",
+                str(snapshot),
+                "--context",
+                str(context),
+                "--read-only",
+            ]
+        )
+        == 0
+    )
+
+    create_server.assert_called_once_with(
+        snapshot.resolve(), refresh=None, context_path=context.resolve(), read_only=True
+    )
+    server.run.assert_called_once_with(transport="stdio")
+
+
 def test_operation_lock_rejects_concurrent_writer(tmp_path):
     from msf_assistant.operation_lock import operation_lock
 
