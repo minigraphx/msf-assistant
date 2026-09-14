@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import fcntl
 import json
 import math
 import os
@@ -408,6 +407,12 @@ class ContextStore:
         records[index] = candidate
 
     def _mutate(self, expected_revision: int, mutate: Callable[[JsonObject], None]) -> JsonObject:
+        try:
+            import fcntl
+        except ImportError:
+            raise ContextError(
+                "Context writes need Unix file locking; use read-only mode on this platform"
+            ) from None
         if (
             isinstance(expected_revision, bool)
             or not isinstance(expected_revision, int)
@@ -442,7 +447,7 @@ class ContextStore:
     def _read_unlocked(self) -> JsonObject:
         self._refuse_symlink()
         try:
-            flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0)
+            flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
             descriptor = os.open(self.path, flags)
         except FileNotFoundError:
             return _empty_context()

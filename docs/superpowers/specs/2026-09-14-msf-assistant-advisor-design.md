@@ -1,6 +1,6 @@
 # MSF Assistant – persönliche Beratung über MCP
 
-Stand: 14. September 2026. Im Brainstorming abgestimmter Umfang der ersten Version; noch nicht implementiert. Technische Machbarkeit der ChatGPT-Verbindung und verfügbare Fortschrittsdaten werden im ersten Meilenstein geprüft.
+Entwurfsstand: 14. September 2026. Im Brainstorming abgestimmter Umfang der ersten Version. Die lokale Beratungsfunktion ist in Version 0.3.0 umgesetzt; den tatsächlichen Prüf- und Verbindungsstand hält [die Abnahmeübersicht](../../advisor-acceptance.md) fest. Die kontospezifische ChatGPT-Verbindung und Nutzerabnahme sind separat nachzuweisen.
 
 Projektplanung: [MSF Assistant in Linear](https://linear.app/minigraphx/project/msf-assistant-32ceda4eb540).
 

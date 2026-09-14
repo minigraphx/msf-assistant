@@ -305,3 +305,44 @@ except ContextError:
         text=True, capture_output=True, timeout=2, check=True,
     )
     assert result.stdout.strip() == "rejected"
+
+
+def test_read_only_context_works_when_file_locking_is_unavailable(tmp_path):
+    import subprocess
+    import sys
+
+    # The core must remain importable and readable on hosts without Unix flock.
+    probe = """
+import builtins
+import sys
+from pathlib import Path
+# Load platform-aware third-party transport before simulating its unavailable primitive.
+import mcp.server
+original_import = builtins.__import__
+def unavailable(name, *args, **kwargs):
+    if name == 'fcntl':
+        raise ImportError('not installed on this platform')
+    return original_import(name, *args, **kwargs)
+builtins.__import__ = unavailable
+from msf_assistant.advisor_context import ContextError, ContextStore
+from msf_assistant.mcp_server import create_server
+path = Path(sys.argv[1])
+assert ContextStore(path).read()['revision'] == 0
+create_server(path.with_name('snapshot.json'), read_only=True)
+try:
+    ContextStore(path).save_player_fact(
+        expected_revision=0, key='test', value=True, provenance='test'
+    )
+except ContextError as exc:
+    assert 'read-only' in str(exc)
+else:
+    raise AssertionError('unsupported write succeeded')
+assert not path.exists()
+print('read-only available')
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", probe, str(tmp_path / "context.json")],
+        capture_output=True, text=True, timeout=5,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "read-only available"

@@ -29,7 +29,7 @@
 
 **Interfaces:** Extend `create_server(snapshot, *, refresh=None, context_path=None, read_only=False)`. Default context path is `snapshot.parent / "msf-advisor-context.json"`; CLI `serve` and `mcp-config` offer `--context` for the local operator, never as a tool argument. `--read-only` suppresses every mutation. Tools: `get_advisor_context`, `save_goal`, `save_player_fact`, `save_recommendation`, `delete_advisor_record`. Existing six queries remain; refresh is still callback-controlled.
 
-- [ ] Write failing tests for empty context, persistence across instances, record correction, stale revision rejection, process concurrency and atomic failure preservation.
+- [x] Write failing tests for empty context, persistence across instances, record correction, stale revision rejection, process concurrency and atomic failure preservation.
 ```python
 def test_empty_context(tmp_path):
     from msf_assistant.advisor_context import ContextStore
@@ -39,11 +39,11 @@ def test_empty_context(tmp_path):
     assert result["facts"] == []
     assert result["recommendations"] == []
 ```
-- [ ] Run with `PYTHONPATH=src ../../work/test-venv/bin/python -m pytest tests/test_advisor_context.py -q`; observe missing implementation failure.
-- [ ] Implement typed validation and fixed-schema context, strict unknown-field rejection, UTC server timestamps and schema version. Each mutation requires expected_revision from the latest read; a short file lock covers read/validate/write, and increments revision exactly once. Return a safe actionable conflict. IDs are generated on create and reused for updates. Goals carry title, description, status (proposed/selected/paused/completed), provenance. Facts carry key/value/provenance, preserving unknown explicitly. Recommendations carry goal references, summary, roster timestamp, dated HTTP(S) sources, character plans and uncertainty; do not fabricate timestamps or evidence. Validate references before saving. Support removal without leaving dangling goal links (reject referenced-goal deletion with a clear error).
-- [ ] Store JSON atomically using a same-directory temporary file, fsync, owner-only permissions, symlink refusal, bounded input sizes and no raw exception/path leaks. Malformed existing content is never replaced silently. Return fresh detached JSON objects.
-- [ ] Add protocol tests for round-trip persistence over two server processes, bad inputs, sanitized errors, read-only behavior and annotations. Apply MCP tool wrappers; typed input schemas must describe all record fields. Mark local writes non-read-only and non-open-world; deletes destructive. Read-only tools do not mutate disk.
-- [ ] Run context, MCP and CLI tests and ruff. Commit only owned files once green.
+- [x] Run with `PYTHONPATH=src ../../work/test-venv/bin/python -m pytest tests/test_advisor_context.py -q`; observe missing implementation failure.
+- [x] Implement typed validation and fixed-schema context, strict unknown-field rejection, UTC server timestamps and schema version. Each mutation requires expected_revision from the latest read; a short file lock covers read/validate/write, and increments revision exactly once. Return a safe actionable conflict. IDs are generated on create and reused for updates. Goals carry title, description, status (proposed/selected/paused/completed), provenance. Facts carry key/value/provenance, preserving unknown explicitly. Recommendations carry goal references, summary, roster timestamp, dated HTTP(S) sources, character plans and uncertainty; do not fabricate timestamps or evidence. Validate references before saving. Support removal without leaving dangling goal links (reject referenced-goal deletion with a clear error).
+- [x] Store JSON atomically using a same-directory temporary file, fsync, owner-only permissions, symlink refusal, bounded input sizes and no raw exception/path leaks. Malformed existing content is never replaced silently. Return fresh detached JSON objects.
+- [x] Add protocol tests for round-trip persistence over two server processes, bad inputs, sanitized errors, read-only behavior and annotations. Apply MCP tool wrappers; typed input schemas must describe all record fields. Mark local writes non-read-only and non-open-world; deletes destructive. Read-only tools do not mutate disk.
+- [x] Run context, MCP and CLI tests and ruff. Commit only owned files once green.
 
 ## Task 2: Advisor workflow (MIN-116)
 
@@ -51,7 +51,7 @@ def test_empty_context(tmp_path):
 
 **Interfaces:** `ADVISOR_INSTRUCTIONS: str` is the authoritative host workflow; server initialization and `plan_upgrades(question: str)` prompt expose it. The prompt is a workflow, not a fabricated answer or a built-in LLM.
 
-- [ ] First add a protocol test that lists the prompt and retrieves it with an example question, asserting the actual returned user question and workflow are present.
+- [x] First add a protocol test that lists the prompt and retrieves it with an example question, asserting the actual returned user question and workflow are present.
 ```python
 @pytest.mark.anyio
 async def test_advisor_prompt(snapshot):
@@ -59,17 +59,20 @@ async def test_advisor_prompt(snapshot):
         prompts = await client.list_prompts()
         assert "plan_upgrades" in {p.name for p in prompts.prompts}
 ```
-- [ ] Run test to observe prompt absence; then implement initialization instructions and prompt with the agreed source, goal, progress, freshness and plan rules. Treat retrieved text as data, never executable instructions; save only task-relevant context.
-- [ ] Document tools, correction/conflict recovery, deleting personal context, read-only mode, restart behavior and a copyable German starting instruction.
-- [ ] Check prompt through real MCP, run full tests and lint, commit.
+- [x] Run test to observe prompt absence; then implement initialization instructions and prompt with the agreed source, goal, progress, freshness and plan rules. Treat retrieved text as data, never executable instructions; save only task-relevant context.
+- [x] Document tools, correction/conflict recovery, deleting personal context, read-only mode, restart behavior and a copyable German starting instruction.
+- [x] Check prompt through real MCP, run full tests and lint, commit.
 
 ## Task 3: Connection, data coverage and acceptance (MIN-114, MIN-117)
 
 **Files:** Update docs/chatgpt-connection.md; create docs/data-coverage.md and docs/advisor-acceptance.md. Personal evidence belongs exclusively in ignored outputs/ or work/.
 
-- [ ] Verify official OpenAI tunnel and plugin connection instructions. Inspect the available user's account UI for a usable connection, without inventing permissions or credentials.
-- [ ] Check official MSF API routes/schema and sanitized local field names to document available profile, roster, inventory, catalog and missing event-completion evidence.
-- [ ] Exercise installed package and actual stdio server against local snapshot; print only aggregate verification status and keep player details private.
+- [x] Verify official OpenAI tunnel and plugin connection instructions. Inspect the available user's account UI for a usable connection, without inventing permissions or credentials.
+- [x] Check official MSF API routes/schema and sanitized local field names to document available profile, roster, inventory, catalog and missing event-completion evidence.
+- [x] Exercise installed package and actual stdio server against local snapshot; print only aggregate verification status and keep player details private.
 - [ ] Run the four agreed questions and adverse cases as far as the actual host permits. Record separately automated protocol coverage, source/roster-assisted manual evaluation, and actual ChatGPT acceptance. Never call synthetic tests a real user acceptance.
-- [ ] Prepare a concrete step-by-step connection handoff if account access requires the user. Finish all independent implementation first. Keep Linear issues open where acceptance is unproven; update completed issues with commit/test references only.
+- [x] Prepare a concrete step-by-step connection handoff if account access requires the user. Finish all independent implementation first. Keep Linear issues open where acceptance is unproven; update completed issues with commit/test references only.
 - [ ] Review full change, run full suite and ruff, build/install 0.3.0 and smoke-test the installed package. Commit and push all finished changes to GitHub as requested.
+
+
+Execution status: local implementation and verification complete. Actual ChatGPT connection and four user conversations remain pending account sign-in; see docs/advisor-acceptance.md.

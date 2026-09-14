@@ -68,3 +68,24 @@ zur Anmeldeseite. Ein Tunnel-Client ist im lokalen Suchpfad nicht vorhanden.
 Ein kontospezifischer Tunnel und eine ChatGPT-MCP-Verbindung sind daher bislang
 nicht nachgewiesen. Die vier Gespräche mit dem Nutzer und die Kombination aus
 ChatGPT-Recherche und diesem MCP bleiben bis zur Verbindung offen.
+
+
+### Lokaler Abschlussstand vom 15. September 2026
+
+- Version 0.3.0: **148 automatisierte Tests bestanden**, Ruff ohne Befund.
+- Wheel und Quelldistribution erfolgreich gebaut; private Ausgabe-, Arbeits- und
+  Zugangsdaten sind nicht Bestandteil der Pakete.
+- Installierte Version: alle **sieben lesenden Werkzeuge** am privaten Snapshot
+  erfolgreich; Start aus einem anderen Arbeitsverzeichnis geprüft.
+- Alle vier Fragen werden vom MCP-Prompt unverändert mit dem Beratungsablauf
+  ausgeliefert. Dies prüft die Übergabe, nicht die Qualität einer erzeugten Antwort.
+- Der Nur-Lesen-Test lässt Snapshot und Kontext bytegleich. Speicherwiederaufnahme,
+  Korrektur und Schreibkonflikte sind mit synthetischen Daten separat geprüft.
+- Vollständiger MSF-Refresh mit dem bestehenden Zugang erfolgreich.
+- Unabhängige Codeprüfung abgeschlossen. Beratungsanweisungen anhand der vier
+  Fragen und acht Fehlerfälle gedanklich geprüft; kein Ersatz für Nutzerabnahme.
+
+**Offen:** Anmeldung im OpenAI-Konto, kontospezifischen Tunnel verbinden, Recherche
+und MCP gemeinsam in ChatGPT ausprobieren und die vier Gespräche mit dem Nutzer
+abnehmen. MIN-114 und MIN-117 bleiben deshalb offen. MIN-115 und MIN-116 betreffen
+die umgesetzten lokalen Funktionen. Das Linear-Projekt bleibt „In Progress“.

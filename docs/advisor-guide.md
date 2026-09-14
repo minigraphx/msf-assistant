@@ -76,7 +76,8 @@ beschädigte Datei wird nicht still durch einen leeren Speicher ersetzt.
 
 `serve --read-only` und `mcp-config --read-only` erlauben nur Lesen. Aktualisierung,
 Speichern und Löschen werden dann nicht angeboten. Die KI muss diesen fehlenden
-Speicherzugriff offenlegen. Reine Abfragen benötigen keine Anmeldung.
+Speicherzugriff offenlegen. Reine Abfragen benötigen keine Anmeldung. Kontext-Schreibzugriffe benötigen
+Unix-Dateisperren (macOS/Linux); andere Hosts können den Nur-Lesen-Modus nutzen.
 
 Mit `--context /privater/pfad/context.json` kann der lokale Betreiber einen festen
 Speicherort setzen. Verwende einen direkten Dateipfad statt einer symbolischen
