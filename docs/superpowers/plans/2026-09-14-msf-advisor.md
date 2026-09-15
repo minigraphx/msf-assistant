@@ -70,9 +70,14 @@ async def test_advisor_prompt(snapshot):
 - [x] Verify official OpenAI tunnel and plugin connection instructions. Inspect the available user's account UI for a usable connection, without inventing permissions or credentials.
 - [x] Check official MSF API routes/schema and sanitized local field names to document available profile, roster, inventory, catalog and missing event-completion evidence.
 - [x] Exercise installed package and actual stdio server against local snapshot; print only aggregate verification status and keep player details private.
-- [ ] Run the four agreed questions and adverse cases as far as the actual host permits. Record separately automated protocol coverage, source/roster-assisted manual evaluation, and actual ChatGPT acceptance. Never call synthetic tests a real user acceptance.
+- [x] Run the four agreed questions and adverse cases as far as the actual host permits. Record separately automated protocol coverage, source/roster-assisted manual evaluation, and actual ChatGPT acceptance. Never call synthetic tests a real user acceptance.
 - [x] Prepare a concrete step-by-step connection handoff if account access requires the user. Finish all independent implementation first. Keep Linear issues open where acceptance is unproven; update completed issues with commit/test references only.
-- [ ] Review full change, run full suite and ruff, build/install 0.3.0 and smoke-test the installed package. Commit and push all finished changes to GitHub as requested.
+- [x] Review full change, run full suite and ruff, build/install 0.3.0 and smoke-test the installed package. Commit and push all finished changes to GitHub as requested.
 
 
-Execution status: local implementation and verification complete. Actual ChatGPT connection and four user conversations remain pending account sign-in; see docs/advisor-acceptance.md.
+Execution status: complete as of 15 September 2026. Version 0.3.0 is installed and
+pushed; 148 tests and Ruff passed. The private ChatGPT tunnel, real MCP reads,
+and web research were verified. The four advisory entry questions were exercised
+in ChatGPT and the user accepted the answers. See docs/advisor-acceptance.md for
+the separate evidence and limits of each check; no personal goal was selected
+or saved by accepting the project.

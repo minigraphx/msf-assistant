@@ -4,6 +4,12 @@ Diese Checkliste prüft das Verhalten des angebundenen Assistenten. Erfolgreiche
 Python- und MCP-Tests allein belegen keine erfolgreiche ChatGPT-Beratung.
 Persönliche Antworten und Rosterwerte gehören ausschließlich nach `outputs/`.
 
+**Abgenommen am 15. September 2026:** Nach Prüfung der vier echten
+Beratungsantworten bestätigte der Nutzer: „die antworten sehen gut aus“.
+Damit ist die fachliche Abnahme erfolgt; MIN-114 bis MIN-117 und das Projekt
+MSF Assistant sind abgeschlossen. Die Rückmeldung bestätigt die Beratung,
+legt aber kein persönliches Ausbauziel fest.
+
 ## Technisch prüfbarer Teil
 
 - Status und Roster über einen echten stdio-Prozess abrufen.
@@ -97,11 +103,10 @@ ChatGPT-Recherche und diesem MCP bleiben bis zur Verbindung offen.
   direkte Abfrage eines offiziellen MSF-Artikels.
 - Snapshot und Beratungskontext nach der Leseprobe unverändert (Hashvergleich).
 
-MIN-114 ist damit abgeschlossen. Die Beratungsfragen werden anschließend am
-echten Roster als ungespeicherte Entwürfe geprüft. Die gemeinsame Nutzerabnahme
-bleibt in MIN-117 offen; technische Erreichbarkeit allein genügt dafür nicht.
-MIN-115 und MIN-116 betreffen die umgesetzten lokalen Funktionen. Das
-Linear-Projekt bleibt bis zur fachlichen Abnahme „In Progress“.
+MIN-114 wurde nach dieser Verbindungsprüfung abgeschlossen. Anschließend wurden
+die Beratungsfragen am echten Roster als ungespeicherte Entwürfe geprüft und
+MIN-117 zur Nutzerabnahme vorgelegt. MIN-115 und MIN-116 betreffen die
+umgesetzten lokalen Funktionen.
 
 ### Beratungsentwürfe im verbundenen ChatGPT
 
@@ -122,11 +127,14 @@ MCP-Speichers als Quelle; dieser Verweis wurde nicht unabhängig nachgeprüft.
 Bei der Nutzerabnahme deshalb die Herkunft persönlicher Angaben prüfen und
 nicht jeden Satz als Ergebnis des lokalen Datenspeichers behandeln.
 
-Alle vier Einstiegsfragen wurden damit im echten Chat durchgespielt. Das ist noch
-keine vollständige fachliche Freigabe: Der Nutzer muss ein tatsächliches Ziel
-wählen und die daraus entstehende vollständige Ausbauplanung abnehmen. Insbesondere
-die DD8-Team-Matrix ist noch offen. Quellenzuordnung und Aktualität bleiben zu
+Alle vier Einstiegsfragen wurden damit im echten Chat durchgespielt und
+anschließend vom Nutzer positiv bewertet. MIN-117 wurde nach dieser Rückmeldung
+abgeschlossen. Ein persönlicher vollständiger Ausbauplan entsteht erst nach
+tatsächlicher Zielwahl; die Probe hat beispielsweise keine vollständige
+DD8-Team-Matrix erstellt. Ebenso wurde kein Nutzerziel gespeichert. Diese
+Grenzen der durchgeführten Probe bleiben dokumentiert.
+
+Bei der weiteren Nutzung sind Quellenzuordnung und Aktualität weiterhin zu
 prüfen, wenn eine offizielle Seite keinen auslesbaren Text liefert und ergänzende
-Belege verwendet werden. Die ungespeicherten Testentwürfe und der noch leere
-Beratungsspeicher sind nicht mit einem bereits gewählten persönlichen Plan
-gleichzusetzen. MIN-117 steht deshalb auf **In Review**.
+Belege verwendet werden. Die fachliche Abnahme ersetzt keine neue Prüfung bei
+späteren Änderungen an Spiel, Roster oder Quellen.
