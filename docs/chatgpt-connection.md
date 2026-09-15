@@ -113,11 +113,47 @@ Der offizielle macOS-Client `0.0.14` ist über Homebrew installiert. Ein private
 stdio-Profil mit absoluten MSF-Startpfaden und einer lokalen Schlüsselreferenz
 liegt unter `outputs/tunnel/`; dieser Ordner ist von Git ausgeschlossen.
 
-Der Verbindungstest ist noch offen: `doctor` stoppt derzeit an der leeren
-Runtime-Schlüsseldatei. Damit sind weder ein laufender Tunnel noch erfolgreiche
-Aufrufe aus ChatGPT belegt. Sobald der Nutzer den Runtime-Schlüssel lokal
-hinterlegt hat, folgen Profilprüfung, Start, Statuskontrolle und die unten
-beschriebene Probe.
+Der Nutzer hat den separaten Runtime-Schlüssel anschließend lokal hinterlegt.
+`doctor` besteht. Der verwaltete Anschluss `msf-assistant` läuft mit dem Profil
+`outputs/tunnel/msf-assistant-runtime.yaml`; der Status meldet
+`process_running=true`, `healthy=true` und `ready=true`. Die authentifizierte
+Abfrage der Tunnel-Metadaten ist erfolgreich.
+
+Das private Plugin **MSF Assistant** ist in ChatGPT verbunden. Alle zwölf
+Werkzeuge sind sichtbar. Im echten ChatGPT-Gespräch wurden `get_status`,
+`get_player_roster(limit=3)` und `get_advisor_context` erfolgreich aufgerufen;
+die Antworten wurden in der Werkzeugliste geprüft. Im selben Gespräch
+funktionierte die Websuche. Marvel.Church verweigerte den direkten Seitenabruf
+mit HTTP 402; ChatGPT kennzeichnete diesen Fehler. Der anschließende direkte
+Abruf eines offiziellen MSF-Artikels war erfolgreich. Damit sind private
+Datenabfragen und öffentliche Recherche zusammen nachgewiesen. Snapshot und
+Beratungskontext blieben bei der Leseprobe unverändert (Hashvergleich).
+
+Der Schlüssel wurde mit 30 Tagen Gültigkeit vorbereitet; vor seinem tatsächlichen
+Ablauf muss ein gültiger Schlüssel in derselben privaten Datei hinterlegt werden.
+Der laufende lokale Anschluss benötigt einen eingeschalteten, erreichbaren Mac.
+Ein automatischer Start nach einem Rechnerneustart ist nicht eingerichtet.
+Status und gezieltes Beenden sind mit diesen Befehlen möglich:
+
+```bash
+tunnel-client runtimes status msf-assistant --json
+tunnel-client runtimes stop msf-assistant
+```
+
+Für diese lokale Installation liegt der vollständige Startaufruf in
+`outputs/tunnel/start.command`. Er enthält ausschließlich feste Startpfade,
+Tunnel-ID und Schlüsselreferenz, keinen Schlüsselwert. Die Datei im Finder
+öffnen oder im Projektordner ausführen:
+
+```bash
+./outputs/tunnel/start.command
+```
+
+Der Aufruf verwendet eine bereits laufende Instanz wieder; dies wurde geprüft.
+`runtimes connect --alias` allein genügt nicht: Der Client verlangt auch den
+MCP-Startbefehl. Danach immer den Status prüfen. Keinen zweiten `run`-Prozess parallel starten.
+Private Prüfnachweise liegen unter `outputs/tunnel/`; Gesprächsinhalte und
+Rosterwerte werden nicht ins Repository übernommen.
 
 Den Tunnel-Schlüssel nur lokal hinterlegen. Keine MSF-Zugangsdaten in ein Chatfenster oder nach Linear
 kopieren. Das Anlegen von Zugängen und neue Freigaben im Konto muss der Nutzer

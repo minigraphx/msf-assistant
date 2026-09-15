@@ -85,7 +85,48 @@ ChatGPT-Recherche und diesem MCP bleiben bis zur Verbindung offen.
 - Unabhängige Codeprüfung abgeschlossen. Beratungsanweisungen anhand der vier
   Fragen und acht Fehlerfälle gedanklich geprüft; kein Ersatz für Nutzerabnahme.
 
-**Offen:** Anmeldung im OpenAI-Konto, kontospezifischen Tunnel verbinden, Recherche
-und MCP gemeinsam in ChatGPT ausprobieren und die vier Gespräche mit dem Nutzer
-abnehmen. MIN-114 und MIN-117 bleiben deshalb offen. MIN-115 und MIN-116 betreffen
-die umgesetzten lokalen Funktionen. Das Linear-Projekt bleibt „In Progress“.
+### ChatGPT-Verbindung vom 15. September 2026
+
+- Privater Tunnel im angemeldeten Konto verbunden; offizieller Client 0.0.14.
+- Verwalteter Prozess läuft, `healthy=true` und `ready=true`; Remote-Abfrage ohne Fehler.
+- Persönliches ChatGPT-Plugin eingerichtet, zwölf Werkzeuge erkannt.
+- Echte Aufrufe von `get_status`, `get_player_roster(limit=3)` und
+  `get_advisor_context` in ChatGPT erfolgreich; Werkzeugantworten geprüft.
+- Websuche im selben Gespräch erfolgreich. Direkter Marvel.Church-Abruf mit HTTP
+  402 abgewiesen und als Fehler kenntlich gemacht. Anschließend erfolgreiche
+  direkte Abfrage eines offiziellen MSF-Artikels.
+- Snapshot und Beratungskontext nach der Leseprobe unverändert (Hashvergleich).
+
+MIN-114 ist damit abgeschlossen. Die Beratungsfragen werden anschließend am
+echten Roster als ungespeicherte Entwürfe geprüft. Die gemeinsame Nutzerabnahme
+bleibt in MIN-117 offen; technische Erreichbarkeit allein genügt dafür nicht.
+MIN-115 und MIN-116 betreffen die umgesetzten lokalen Funktionen. Das
+Linear-Projekt bleibt bis zur fachlichen Abnahme „In Progress“.
+
+### Beratungsentwürfe im verbundenen ChatGPT
+
+Die folgenden Fragen wurden mit dem echten Roster in einem separaten
+Beratungsgespräch gestellt. Speichern wurde für diese Probe ausdrücklich
+ausgeschlossen; die Antworten sind noch keine vom Nutzer gewählten Ziele.
+
+| Fall | Beobachtung |
+| --- | --- |
+| Nächstes Upgrade | Konkrete Istwerte, priorisierte Charaktere, vorhandene Teamteile und ein gesperrter Charakter erkannt; andere Investitionsgruppen gegenübergestellt. |
+| DD8 | Eintrittsbedingungen von empfohlenem Ausbau getrennt; unbekannte DD-Abschlüsse nicht aus dem Roster abgeleitet. Mehrere Abschnitte besprochen, aber noch keine vollständige verbindliche Team-Matrix. |
+| Langfristiger Nutzen | Vorhandene Investitionen und Nutzen über mehrere Modi verglichen; Anforderungen ausdrücklich von Prognosen getrennt. |
+| Neuestes Team | Neueste Ankündigung von vollständiger Veröffentlichung unterschieden, relevante Roster- und Katalogeinträge abgefragt, kostenlose Zugänge und deren Beleglücken benannt. Nicht freigeschaltete Figuren und eine vorläufige Investitionsreihenfolge berücksichtigt. |
+
+In einer Antwort wurde eine persönliche Angabe zunächst ohne Herkunft verwendet.
+Auf Nachfrage nannte ChatGPT ein früheres Gespräch außerhalb des lokalen
+MCP-Speichers als Quelle; dieser Verweis wurde nicht unabhängig nachgeprüft.
+Bei der Nutzerabnahme deshalb die Herkunft persönlicher Angaben prüfen und
+nicht jeden Satz als Ergebnis des lokalen Datenspeichers behandeln.
+
+Alle vier Einstiegsfragen wurden damit im echten Chat durchgespielt. Das ist noch
+keine vollständige fachliche Freigabe: Der Nutzer muss ein tatsächliches Ziel
+wählen und die daraus entstehende vollständige Ausbauplanung abnehmen. Insbesondere
+die DD8-Team-Matrix ist noch offen. Quellenzuordnung und Aktualität bleiben zu
+prüfen, wenn eine offizielle Seite keinen auslesbaren Text liefert und ergänzende
+Belege verwendet werden. Die ungespeicherten Testentwürfe und der noch leere
+Beratungsspeicher sind nicht mit einem bereits gewählten persönlichen Plan
+gleichzusetzen. MIN-117 steht deshalb auf **In Review**.
