@@ -151,8 +151,10 @@ zunächst in einen privaten Wartungszustand; der Betreiber gleicht seit der
 Sicherung erfolgte Kontolöschungen ab, bevor Selbstanmeldung wieder freigegeben
 wird. Dadurch werden frühere Zugänge nicht allein durch das Backup reaktiviert.
 
-Gemessene Ausgangslage: knapp 2 GB RAM, nur etwa 220 MB verfügbar, kein Swap,
-rund 2,7 GiB freier Datenträger, vorhandene Web-/Maildienste und LibreChat.
+Gemessene Ausgangslage nach der separat vom Nutzer beauftragten Entfernung
+der drei LibreChat-Container: knapp 2 GB RAM, etwa 514 MiB verfügbar, kein Swap,
+rund 2,7 GiB freier Datenträger und vorhandene Web-/Maildienste. Die gespeicherten
+LibreChat-Daten sind erhalten; es laufen keine Docker-Container mehr.
 Ubuntu 20.04 hat keine aktivierte erweiterte Wartung. Vor öffentlicher Freigabe
 müssen ein betreuter Wartungsweg und ausreichende Kapazität nachgewiesen sein.
 Serververgrößerung, Host-Upgrade oder das Abschalten bestehender Anwendungen

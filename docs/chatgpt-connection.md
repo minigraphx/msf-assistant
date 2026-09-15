@@ -18,7 +18,9 @@ der Betriebssystem-Wartungsstatus muss vor dem produktiven Ausbau geklärt werde
 Ergebnisse und Betriebsoptionen stehen in der
 [Serverprüfung](server-readiness.md). Als Clients sind **ChatGPT und Claude**
 bestätigt; **jeder Spieler darf sich selbst anmelden**.
-Auf dem Server wurde nichts verändert.
+Auf ausdrücklichen Nutzerwunsch wurden anschließend die drei LibreChat-Container
+entfernt; ihre gespeicherten Daten bleiben erhalten. Danach waren rund 514 MiB
+RAM verfügbar. Der MSF Assistant wurde noch nicht auf dem Server installiert.
 Die bestehende CLI bietet ausschließlich stdio, und Login/Refresh nutzen
 den macOS-Schlüsselbund. Für den Umzug müssen daher Verbindungsweg,
 Zugriffsschutz, plattformgeeignete Token-Speicherung und dauerhafter Betrieb

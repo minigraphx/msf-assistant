@@ -15,7 +15,7 @@ Spieleridentität und Zugriffsrechte müssen serverseitig geprüft werden.
 Als Ziel-Clients sind **ChatGPT und Claude** bestätigt. **Jeder Spieler darf
 sich selbst anmelden**; eine Einladung durch den Betreiber ist nicht vorgesehen.
 
-## Lesend gemessener Zustand
+## Ursprüngliche Bestandsaufnahme
 
 Nach Entsperren des vorhandenen, passwortgeschützten SSH-Schlüssels war der
 Zugriff erfolgreich. Die feste Agent- und Schlüsselauswahl musste für den
@@ -41,6 +41,32 @@ und Datenbankdienste laufen außerhalb dieser Container.
 Die Anwendung benötigt Python 3.12 oder neuer. Der reguläre Support für Ubuntu
 20.04 endete am 31. Mai 2025; Canonical bietet erweiterte Wartung über Ubuntu Pro
 an. Siehe [offizieller Ubuntu-Status](https://ubuntu.com/20-04).
+
+## LibreChat-Container auf Nutzerwunsch entfernt
+
+Am 15. September 2026 hat der Nutzer nach der Auflistung der drei
+LibreChat-Container deren Entfernung freigegeben. Die Anwendung wurde zuerst
+gestoppt, anschließend MongoDB und Meilisearch; danach wurden genau diese drei
+Container entfernt. Die Nachprüfung um etwa 19:13 UTC zeigte:
+
+- `docker ps -a` liefert keine Container mehr; Port 3080 lauscht nicht mehr.
+- Verfügbarer Arbeitsspeicher: **514 MiB** gegenüber **222 MiB** unmittelbar
+  vor der Entfernung, also etwa **292 MiB zusätzlich verfügbar**.
+- Die persistenten Ordner für Datenbank, Suchindex und hochgeladene Dateien sowie
+  das vorhandene MongoDB-Volume sind weiterhin vorhanden. Auch Compose-Dateien,
+  Konfiguration und Container-Images wurden nicht entfernt.
+- Freier Platz auf dem Systemlaufwerk weiterhin rund **2,7 GiB**. Es wurde
+  keine allgemeine Docker- oder Volume-Bereinigung ausgeführt.
+- nginx, MariaDB, Redis, Dovecot, Postfix und Docker melden weiterhin `active`.
+  Web- und Mailports lauschen weiter. Das ist eine Dienstprüfung, kein vollständiger
+  Funktionstest aller bestehenden Webseiten und Postfächer.
+
+Die Container können nicht mehr durch ihre bisherige Docker-Neustartregel
+starten, weil sie entfernt wurden. Eine spätere Wiederherstellung würde die
+Container mit der erhaltenen Konfiguration und den Daten neu anlegen.
+Der MSF Assistant wurde noch nicht auf dem Server installiert. Wartungsstatus
+und Lasttest bleiben vor der öffentlichen Freigabe zu klären; 514 MiB sind
+eine Momentaufnahme und keine zugesicherte Betriebsreserve.
 
 ## Betriebsoptionen für den Entwurf
 
@@ -77,8 +103,9 @@ Serververgrößerung sind Teil der durchgeführten Bestandsaufnahme.
 - Sicherung und Wiederherstellung testen; erst nach erfolgreicher Abnahme die
   bisherige lokale Verbindung umstellen.
 
-Es wurden keine Pakete installiert, Dienste verändert oder Spielerdaten auf
-den Server übertragen.
+Bei der ursprünglichen Bestandsaufnahme wurden keine Pakete installiert,
+Dienste verändert oder Spielerdaten übertragen. Die später vom Nutzer
+beauftragte Entfernung der LibreChat-Container ist oben gesondert dokumentiert.
 
 ## Grundlagen für die gemeinsame Anmeldung
 

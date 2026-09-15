@@ -88,7 +88,10 @@ The user selected their existing small server, configured as the SSH alias
 unlocked their SSH key. Docker and nginx are already installed. Limited available
 memory and operating-system maintenance need attention before production hosting;
 see docs/server-readiness.md for the measurements and candidate approaches.
-No server changes were made. The user confirmed ChatGPT and Claude as clients,
+The initial inspection made no server changes. At the user's later request,
+the three LibreChat containers were removed while preserving their stored data;
+available memory subsequently measured 514 MiB. MSF is not yet deployed there.
+The user confirmed ChatGPT and Claude as clients,
 with public self-registration. The remote transport, authentication, and
 token-storage design still need approval. Each player's
 MSF credentials, snapshot, and advisory context must remain isolated; a player's
