@@ -75,9 +75,12 @@ async def test_advisor_prompt(snapshot):
 - [x] Review full change, run full suite and ruff, build/install 0.3.0 and smoke-test the installed package. Commit and push all finished changes to GitHub as requested.
 
 
-Execution status: complete as of 15 September 2026. Version 0.3.0 is installed and
+Execution status: this local implementation phase is complete as of 15 September 2026. Version 0.3.0 is installed and
 pushed; 148 tests and Ruff passed. The private ChatGPT tunnel, real MCP reads,
 and web research were verified. The four advisory entry questions were exercised
 in ChatGPT and the user accepted the answers. See docs/advisor-acceptance.md for
 the separate evidence and limits of each check; no personal goal was selected
-or saved by accepting the project.
+or saved by accepting the advisory answers. The overall Linear project remains
+open at the user's request. Its next phase is deployment to the user's webserver;
+server details, intended clients, and user scope must be established before
+choosing the remote transport, authentication, and token-storage design.

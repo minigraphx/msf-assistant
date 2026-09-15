@@ -6,9 +6,11 @@ Persönliche Antworten und Rosterwerte gehören ausschließlich nach `outputs/`.
 
 **Abgenommen am 15. September 2026:** Nach Prüfung der vier echten
 Beratungsantworten bestätigte der Nutzer: „die antworten sehen gut aus“.
-Damit ist die fachliche Abnahme erfolgt; MIN-114 bis MIN-117 und das Projekt
-MSF Assistant sind abgeschlossen. Die Rückmeldung bestätigt die Beratung,
-legt aber kein persönliches Ausbauziel fest.
+Damit ist die fachliche Abnahme des lokalen Stands erfolgt; MIN-114 bis MIN-117
+sind abgeschlossen. Die Rückmeldung bestätigt die Beratung, legt aber kein
+persönliches Ausbauziel fest. Das Gesamtprojekt bleibt auf ausdrücklichen
+Nutzerwunsch offen: Die nächste Ausbaustufe ist der dauerhafte Betrieb auf dem
+Webserver des Nutzers, unabhängig vom eingeschalteten Mac.
 
 ## Technisch prüfbarer Teil
 

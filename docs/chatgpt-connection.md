@@ -5,6 +5,18 @@ Chat-Oberfläche. Anmeldung und Aktualisierung benötigen macOS wegen des
 Schlüsselbunds; reine Abfragen gespeicherter Daten funktionieren auch auf
 anderen Betriebssystemen mit Python 3.12+.
 
+## Nächste Ausbaustufe: eigener Webserver
+
+Die lokale Version ist abgenommen; das Gesamtprojekt bleibt offen. Als Nächstes
+soll der MCP auf dem Webserver des Nutzers laufen und unabhängig vom Mac
+erreichbar sein. Zielserver, gewünschte Clients und Nutzerkreis sind noch zu
+klären. Die bestehende CLI bietet ausschließlich stdio, und Login/Refresh nutzen
+den macOS-Schlüsselbund. Für den Umzug müssen daher Verbindungsweg,
+Zugriffsschutz, plattformgeeignete Token-Speicherung und dauerhafter Betrieb
+festgelegt werden. Mehrere persönliche Clients und mehrere Spieler mit eigenen
+Daten sind unterschiedliche Betriebsmodelle. Die aktuelle lokale Verbindung
+bleibt bis zu einer erfolgreichen Serverprobe in Betrieb.
+
 ## Lokaler MCP-Host
 
 Im Projektordner mit der installierten Python-Umgebung ausführen:
