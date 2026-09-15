@@ -138,6 +138,11 @@ noch Anmeldecodes, vollständige Callback-Querystrings oder persönliche Roster.
 
 Der Dienst läuft mit einem eigenen Benutzer, persistentem Datenverzeichnis,
 Neustartregel, Speichergrenze und einer Zustandsprüfung ohne persönliche Daten.
+Der persistente Hostpfad ist `/var/lib/msf-assistant` auf dem separaten
+`/var`-Laufwerk. Auch Docker speichert seine Images bereits dort unter
+`/var/lib/docker`; eine Docker-Verlagerung ist nicht vorgesehen. Vor Dienststart
+wird die erwartete Einhängung von `/var` geprüft. Bei fehlendem Datenlaufwerk
+startet die App nicht und legt keinen Ersatzbestand auf dem Systemlaufwerk an.
 Das Image wird außerhalb des kleinen Zielservers gebaut. Ein neues Image darf
 die Daten nicht ersetzen. Datenbank und Spielerdateien werden zusammenhängend
 gesichert; das Verfahren blockiert während der konsistenten Sicherung Änderungen.
@@ -152,8 +157,11 @@ Sicherung erfolgte Kontolöschungen ab, bevor Selbstanmeldung wieder freigegeben
 wird. Dadurch werden frühere Zugänge nicht allein durch das Backup reaktiviert.
 
 Gemessene Ausgangslage nach der separat vom Nutzer beauftragten Entfernung
-der drei LibreChat-Container: knapp 2 GB RAM, etwa 514 MiB verfügbar, kein Swap,
-rund 2,7 GiB freier Datenträger und vorhandene Web-/Maildienste. Die gespeicherten
+der drei LibreChat-Container: knapp 2 GB RAM, etwa 511–514 MiB verfügbar, kein Swap
+und vorhandene Web-/Maildienste. Die ergänzende Laufwerksprüfung zeigt rund
+28 GiB frei auf dem separaten `/var`-Laufwerk; die 2,7 GiB der ersten Prüfung
+beziehen sich ausschließlich auf `/`. Weitere Datenlaufwerke sind vorhanden;
+siehe Serverprüfung. Die gespeicherten
 LibreChat-Daten sind erhalten; es laufen keine Docker-Container mehr.
 Ubuntu 20.04 hat keine aktivierte erweiterte Wartung. Vor öffentlicher Freigabe
 müssen ein betreuter Wartungsweg und ausreichende Kapazität nachgewiesen sein.

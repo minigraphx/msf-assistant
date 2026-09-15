@@ -42,6 +42,39 @@ Die Anwendung benötigt Python 3.12 oder neuer. Der reguläre Support für Ubunt
 20.04 endete am 31. Mai 2025; Canonical bietet erweiterte Wartung über Ubuntu Pro
 an. Siehe [offizieller Ubuntu-Status](https://ubuntu.com/20-04).
 
+## Zusätzliche Datenlaufwerke geprüft
+
+Nach dem Hinweis des Nutzers wurden am 15. September 2026 auch `/mnt/data`,
+`/data` und `/var` geprüft. Die ursprüngliche Angabe von 2,7 GiB freiem Speicher
+bezog sich ausschließlich auf `/` und beschreibt nicht die gesamte verfügbare
+Speicherkapazität des Servers.
+
+| Einhängepunkt | Dateisystem | Größe | Frei |
+| --- | --- | ---: | ---: |
+| `/` | ext4 | 7,7 GiB | 2,7 GiB |
+| `/mnt/data` | ext4, eigenes Laufwerk | 20 GiB | 5,3 GiB |
+| `/data` | ext4, eigenes Laufwerk | 20 GiB | 4,8 GiB |
+| `/var` | ext4, eigenes Laufwerk | 49 GiB | 28 GiB |
+
+Alle genannten Laufwerke sind schreibbar eingehängt und haben freie Inodes.
+Docker verwendet laut eigener Konfiguration `/var/lib/docker` und liegt damit
+bereits auf dem großen `/var`-Laufwerk. `/var` ist über UUID dauerhaft in der
+Mount-Konfiguration eingetragen. Es ist keine Verlagerung von Docker erforderlich.
+
+Für den Entwurf wird **`/var/lib/msf-assistant`** als privater persistenter
+Datenpfad vorgesehen. Der Pfad existiert noch nicht; er wurde bei dieser Prüfung
+nicht angelegt. Vor Dienststart muss geprüft werden, dass das erwartete
+`/var`-Laufwerk tatsächlich eingehängt ist, damit ein fehlendes Datenlaufwerk
+nicht unbemerkt durch einen leeren Datenordner auf `/` ersetzt wird.
+
+Der freie Platz auf `/var` bietet eine deutlich größere Reserve für Daten und
+Images als die ursprüngliche Prüfung des Systemlaufwerks vermuten ließ.
+Datengrößen, Logrotation und Sicherungen bleiben begrenzt und überwacht.
+Eine Sicherung auf demselben Server ersetzt keine Sicherung gegen dessen Ausfall.
+Der verfügbare RAM lag bei dieser Nachprüfung bei 511 MiB; die zusätzlichen
+Datenträger erhöhen den Arbeitsspeicher nicht. Es wurde nichts verschoben,
+installiert oder an der Mount-Konfiguration geändert.
+
 ## LibreChat-Container auf Nutzerwunsch entfernt
 
 Am 15. September 2026 hat der Nutzer nach der Auflistung der drei

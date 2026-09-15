@@ -21,6 +21,9 @@ bestätigt; **jeder Spieler darf sich selbst anmelden**.
 Auf ausdrücklichen Nutzerwunsch wurden anschließend die drei LibreChat-Container
 entfernt; ihre gespeicherten Daten bleiben erhalten. Danach waren rund 514 MiB
 RAM verfügbar. Der MSF Assistant wurde noch nicht auf dem Server installiert.
+Die ergänzende Laufwerksprüfung zeigt rund 28 GiB frei auf dem separaten
+`/var`-Laufwerk. Dort liegt Docker bereits; für die dauerhaften MSF-Daten ist
+`/var/lib/msf-assistant` vorgesehen.
 Die bestehende CLI bietet ausschließlich stdio, und Login/Refresh nutzen
 den macOS-Schlüsselbund. Für den Umzug müssen daher Verbindungsweg,
 Zugriffsschutz, plattformgeeignete Token-Speicherung und dauerhafter Betrieb
