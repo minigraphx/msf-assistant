@@ -46,12 +46,30 @@ Die aktuelle Anleitung und den Client-Download findest du im
 
 1. Im dort verlinkten Platform-Tunnelbereich einen Tunnel anlegen und deinem
    ChatGPT-Workspace zuordnen.
-2. Den offiziellen `tunnel-client` installieren. Den Tunnel-Schlüssel lokal als
-   `CONTROL_PLANE_API_KEY` bereitstellen; nicht ins Repository schreiben.
+2. Auf macOS den offiziellen Client mit
+   `brew install openai/tools/tunnel-client` installieren. Einen separaten
+   **Restricted**-Runtime-Schlüssel mit **Tunnels: Read + Use** anlegen.
+   Keinen Admin-Schlüssel verwenden. Den Schlüssel lokal als
+   `CONTROL_PLANE_API_KEY` oder über eine `file:/absoluter/pfad`-Referenz
+   bereitstellen; nicht ins Repository schreiben. Eine Schlüsseldatei soll
+   nur für den eigenen Benutzer lesbar sein (Dateimodus `0600`).
 3. Ein stdio-Profil einrichten. Als MCP-Startbefehl die Python-Datei und Argumente
    aus `mcp-config` verwenden; Pfade mit Leerzeichen einzeln quotieren.
-4. Das Profil mit `tunnel-client doctor` prüfen und mit `tunnel-client run` starten.
-   Der Mac und der Tunnel müssen während der Nutzung laufen.
+4. Das Profil mit `tunnel-client doctor --explain` prüfen. Für einen Lauf im
+   geöffneten Terminal `tunnel-client run` verwenden. Für einen länger laufenden
+   lokalen Anschluss unterstützt der Client `tunnel-client runtimes connect`;
+   anschließend mit `tunnel-client runtimes status <alias> --json` prüfen, ob
+   der Prozess läuft und `healthy` sowie `ready` meldet. Der Mac und der Tunnel
+   müssen während der Nutzung laufen. Pro Tunnel-ID darf bei stdio nur eine
+   Instanz aktiv sein.
+
+Die vollständigen Optionen stehen in `tunnel-client init --help` und
+`tunnel-client runtimes connect --help`. Bei einem eigenen Profilverzeichnis
+auch bei `doctor` und `run` stets `--profile-dir` angeben oder direkt
+`--profile-file` verwenden. Der eingeblendete Kurzaufruf nach `init` enthält
+das benutzerdefinierte Profilverzeichnis unter Umständen nicht.
+Siehe die [offizielle Client-Anleitung](https://github.com/openai/tunnel-client)
+und [Schlüsselberechtigungen](https://github.com/openai/tunnel-client/blob/master/docs/permissions.md).
 
 In ChatGPT Entwicklermodus unter **Einstellungen → Sicherheit und Anmeldung**
 aktivieren. Bei den Plugins über **+ → Verbindung → Tunnel** deinen Tunnel
@@ -88,15 +106,20 @@ nur für die Anmeldung vorgesehen und kein ChatGPT-MCP-Endpunkt.
 
 ## Verbindungsstand und Abnahme
 
-Am 14. September 2026 wurden die oben verlinkten offiziellen Anleitungen erneut
-geprüft. Der private stdio-Weg ist dort beschrieben. Im getrennten Prüf-Browser
-führt die Tunnelverwaltung zur Anmeldung; ein angemeldeter Workspace, dessen
-Tunnel-Berechtigungen und eine bestehende Verbindung sind damit nicht belegt.
-Die lokale Installation allein erzeugt keine ChatGPT-Verbindung.
+Am 15. September 2026 wurde der vom Nutzer erstellte MSF-Tunnel im angemeldeten
+Platform-Konto geprüft. Nach ausdrücklicher Bestätigung wurde der angebotene
+ChatGPT-Arbeitsbereich zugeordnet und in ChatGPT der Entwicklermodus aktiviert.
+Der offizielle macOS-Client `0.0.14` ist über Homebrew installiert. Ein privates
+stdio-Profil mit absoluten MSF-Startpfaden und einer lokalen Schlüsselreferenz
+liegt unter `outputs/tunnel/`; dieser Ordner ist von Git ausgeschlossen.
 
-Nach der Anmeldung zuerst einen vorhandenen passenden Tunnel auswählen oder
-einen privaten Tunnel für den eigenen Workspace einrichten. Den Tunnel-Schlüssel
-nur lokal hinterlegen. Keine MSF-Zugangsdaten in ein Chatfenster oder nach Linear
+Der Verbindungstest ist noch offen: `doctor` stoppt derzeit an der leeren
+Runtime-Schlüsseldatei. Damit sind weder ein laufender Tunnel noch erfolgreiche
+Aufrufe aus ChatGPT belegt. Sobald der Nutzer den Runtime-Schlüssel lokal
+hinterlegt hat, folgen Profilprüfung, Start, Statuskontrolle und die unten
+beschriebene Probe.
+
+Den Tunnel-Schlüssel nur lokal hinterlegen. Keine MSF-Zugangsdaten in ein Chatfenster oder nach Linear
 kopieren. Das Anlegen von Zugängen und neue Freigaben im Konto muss der Nutzer
 selbst bestätigen.
 
