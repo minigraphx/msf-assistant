@@ -60,7 +60,7 @@ class HostedStore:
             pass
 
     @staticmethod
-    def _check(path: Path, *, directory: bool) -> None:
+    def _check(path: Path, *, directory: bool, missing_ok: bool = False) -> None:
         try:
             for ancestor in path.parents:
                 if ancestor.is_symlink():
@@ -74,6 +74,9 @@ class HostedStore:
                 or (not directory and info.st_nlink != 1)
             ):
                 raise HostedStoreError("Unsafe storage path or permissions")
+        except FileNotFoundError:
+            if not missing_ok:
+                raise HostedStoreError("Storage path is unavailable") from None
         except OSError:
             raise HostedStoreError("Storage path is unavailable") from None
 
@@ -106,7 +109,8 @@ class HostedStore:
         for suffix in ("-journal", "-wal", "-shm"):
             side = Path(str(self.database_path) + suffix)
             if os.path.lexists(side):
-                self._file(side)
+                # A concurrent SQLite commit may remove an optional side file.
+                self._check(side, directory=False, missing_ok=True)
 
     def _verify_key(self, db: sqlite3.Connection, *, initialize: bool) -> None:
         tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}

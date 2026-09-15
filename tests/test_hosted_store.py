@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -231,3 +232,26 @@ def test_symlinked_ancestor_does_not_create_storage(tmp_path, key):
     with pytest.raises(HostedStoreError):
         HostedStore(link / "private", key)
     assert not (target / "private").exists()
+
+
+def test_commit_between_journal_existence_check_and_validation(store, monkeypatch):
+    player = store.player("issuer", "alice")
+    journal = Path(str(store.database_path) + "-journal")
+    real_lexists = os.path.lexists
+    writer = sqlite3.connect(store.database_path, isolation_level=None)
+    try:
+        writer.execute("BEGIN IMMEDIATE")
+        writer.execute("UPDATE players SET subject = 'committed' WHERE id = ?", (player.id,))
+        assert journal.is_file()
+
+        def commit_after_existence_check(path):
+            exists = real_lexists(path)
+            if path == journal and exists:
+                writer.commit()
+                assert not journal.exists()
+            return exists
+
+        monkeypatch.setattr(os.path, "lexists", commit_after_existence_check)
+        assert store.require_player(player.id).subject == "committed"
+    finally:
+        writer.close()
