@@ -15,6 +15,8 @@ SSH-Alias `webserver` vorgesehen; Docker könnte bei Bedarf installiert werden.
 Betriebssystem, verfügbare Ressourcen und konkrete Client-Produkte sind noch zu
 klären. Die erste SSH-Prüfung am 15. September 2026 scheiterte an der
 Schlüsselauthentifizierung, bevor Serverinformationen ausgelesen werden konnten.
+Der konfigurierte private Schlüssel ist vorhanden und laut Nutzer
+passwortgeschützt; für die weitere Prüfung muss er lokal entsperrt werden.
 Auf dem Server wurde nichts verändert.
 Die bestehende CLI bietet ausschließlich stdio, und Login/Refresh nutzen
 den macOS-Schlüsselbund. Für den Umzug müssen daher Verbindungsweg,
