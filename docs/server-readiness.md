@@ -1,7 +1,9 @@
 # Serverprüfung für den Mehrspielerbetrieb
 
-Stand: 15. September 2026. Vorbereitende Bestandsaufnahme für MIN-118;
-kein freigegebenes Implementierungsdesign und noch keine Bereitstellung.
+Stand: 15. September 2026. Vorbereitende Bestandsaufnahme für MIN-118.
+Der Nutzer hat den grundsätzlichen Container-Aufbau bestätigt. Die schriftliche
+Konkretisierung steht im [Mehrspieler-Entwurf](superpowers/specs/2026-09-15-hosted-multi-player-design.md)
+zur Prüfung; noch keine Implementierung oder Bereitstellung.
 Das Gesamtprojekt bleibt offen. Der lokale Stand v0.3.0 ist abgenommen.
 
 ## Bestätigter Bedarf
@@ -33,6 +35,9 @@ wurde nicht geändert.
 | Erweiterte Ubuntu-Wartung | `ua status` meldet keine zugeordnete Subscription |
 
 Die Werte sind Momentaufnahmen, kein Lasttest und keine garantierte Reserve.
+Die drei Container sind über ihre Compose-Labels derselben LibreChat-Installation
+zugeordnet: Anwendung, MongoDB und Meilisearch. Die übrigen genannten Web-, Mail-
+und Datenbankdienste laufen außerhalb dieser Container.
 Die Anwendung benötigt Python 3.12 oder neuer. Der reguläre Support für Ubuntu
 20.04 endete am 31. Mai 2025; Canonical bietet erweiterte Wartung über Ubuntu Pro
 an. Siehe [offizieller Ubuntu-Status](https://ubuntu.com/20-04).
