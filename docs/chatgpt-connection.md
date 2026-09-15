@@ -11,12 +11,13 @@ Die lokale Version ist abgenommen; das Gesamtprojekt bleibt offen. Als Nächstes
 soll der MCP auf dem Webserver des Nutzers laufen und unabhängig vom Mac
 erreichbar sein. Der Nutzer hat **mehrere Spieler und mehrere Clients** als
 Zielumfang bestätigt. Als Ziel ist der bestehende kleine Server über den
-SSH-Alias `webserver` vorgesehen; Docker könnte bei Bedarf installiert werden.
-Betriebssystem, verfügbare Ressourcen und konkrete Client-Produkte sind noch zu
-klären. Die erste SSH-Prüfung am 15. September 2026 scheiterte an der
-Schlüsselauthentifizierung, bevor Serverinformationen ausgelesen werden konnten.
-Der konfigurierte private Schlüssel ist vorhanden und laut Nutzer
-passwortgeschützt; für die weitere Prüfung muss er lokal entsperrt werden.
+SSH-Alias `webserver` vorgesehen. Nach lokaler Entsperrung des SSH-Schlüssels
+wurde der Server am 15. September 2026 ausschließlich lesend geprüft. Docker
+und nginx sind bereits installiert. Die gemessene Speicherreserve ist knapp;
+der Betriebssystem-Wartungsstatus muss vor dem produktiven Ausbau geklärt werden.
+Ergebnisse und Betriebsoptionen stehen in der
+[Serverprüfung](server-readiness.md). Als Clients sind **ChatGPT und Claude**
+bestätigt; **jeder Spieler darf sich selbst anmelden**.
 Auf dem Server wurde nichts verändert.
 Die bestehende CLI bietet ausschließlich stdio, und Login/Refresh nutzen
 den macOS-Schlüsselbund. Für den Umzug müssen daher Verbindungsweg,
