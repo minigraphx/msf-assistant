@@ -9,13 +9,25 @@ anderen Betriebssystemen mit Python 3.12+.
 
 Die lokale Version ist abgenommen; das Gesamtprojekt bleibt offen. Als Nächstes
 soll der MCP auf dem Webserver des Nutzers laufen und unabhängig vom Mac
-erreichbar sein. Zielserver, gewünschte Clients und Nutzerkreis sind noch zu
-klären. Die bestehende CLI bietet ausschließlich stdio, und Login/Refresh nutzen
+erreichbar sein. Der Nutzer hat **mehrere Spieler und mehrere Clients** als
+Zielumfang bestätigt. Als Ziel ist der bestehende kleine Server über den
+SSH-Alias `webserver` vorgesehen; Docker könnte bei Bedarf installiert werden.
+Betriebssystem, verfügbare Ressourcen und konkrete Client-Produkte sind noch zu
+klären. Die erste SSH-Prüfung am 15. September 2026 scheiterte an der
+Schlüsselauthentifizierung, bevor Serverinformationen ausgelesen werden konnten.
+Auf dem Server wurde nichts verändert.
+Die bestehende CLI bietet ausschließlich stdio, und Login/Refresh nutzen
 den macOS-Schlüsselbund. Für den Umzug müssen daher Verbindungsweg,
 Zugriffsschutz, plattformgeeignete Token-Speicherung und dauerhafter Betrieb
-festgelegt werden. Mehrere persönliche Clients und mehrere Spieler mit eigenen
-Daten sind unterschiedliche Betriebsmodelle. Die aktuelle lokale Verbindung
-bleibt bis zu einer erfolgreichen Serverprobe in Betrieb.
+festgelegt werden. Jeder Spieler benötigt eine eigene MSF-Anmeldung sowie
+getrennte Spielerdaten und Beratungskontexte. Mehrere zugelassene Clients eines
+Spielers sollen denselben persönlichen Kontext nutzen können. Die Zuordnung muss
+aus der authentifizierten Identität erfolgen; frei übergebene Spielerkennungen
+dürfen keinen Zugriff auf fremde Daten ermöglichen. Die Abnahme muss mindestens
+zwei getrennte Testspieler und zwei Clients einschließlich unzulässiger
+Zugriffsversuche abdecken. Die konkrete Technik ist noch nicht festgelegt.
+Die aktuelle lokale Verbindung bleibt bis zu einer erfolgreichen Serverprobe
+in Betrieb. Die Ausbaustufe wird in MIN-118 verfolgt.
 
 ## Lokaler MCP-Host
 

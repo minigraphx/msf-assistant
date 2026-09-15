@@ -82,5 +82,13 @@ in ChatGPT and the user accepted the answers. See docs/advisor-acceptance.md for
 the separate evidence and limits of each check; no personal goal was selected
 or saved by accepting the advisory answers. The overall Linear project remains
 open at the user's request. Its next phase is deployment to the user's webserver;
-server details, intended clients, and user scope must be established before
-choosing the remote transport, authentication, and token-storage design.
+the user has confirmed multiple players and multiple clients as the next scope.
+The user selected their existing small server, configured as the SSH alias
+`webserver`; Docker could be installed if needed. Initial SSH inspection on
+15 September 2026 failed at public-key authentication, so operating system,
+capacity and existing services remain unverified. No server changes were made.
+These details and specific client products must be established before choosing
+the remote transport, authentication, and token-storage design. Each player's
+MSF credentials, snapshot, and advisory context must remain isolated; a player's
+authorized clients should share that player's context. This next phase is tracked
+in MIN-118 and is not implemented by the completed local plan above.
