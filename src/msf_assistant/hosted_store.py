@@ -204,6 +204,20 @@ class HostedStore:
             self._directory(path)
             return path
 
+    def encrypt_private(self, context: str, payload: dict) -> bytes:
+        """Authenticated envelope bound to a caller-supplied purpose and record ID."""
+        return self._cipher.encrypt(json.dumps({"context": context, "payload": payload}).encode())
+
+    def decrypt_private(self, context: str, encrypted: bytes) -> dict:
+        """Reject tampered envelopes and ciphertext copied between records/purposes."""
+        try:
+            envelope = json.loads(self._cipher.decrypt(encrypted))
+            if envelope["context"] != context or not isinstance(envelope["payload"], dict):
+                raise ValueError
+            return envelope["payload"]
+        except (InvalidToken, ValueError, TypeError, KeyError, AttributeError):
+            raise HostedStoreError("Private metadata could not be verified") from None
+
     def save_tokens(self, player_id: str, tokens: TokenSet) -> None:
         with self.transaction() as db:
             self._require(db, player_id)
