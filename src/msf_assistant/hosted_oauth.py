@@ -331,6 +331,16 @@ class HostedOAuthProvider:
         return self.public_url + "/consent?" + urlencode({"request_id": request_id})
 
     @_offload
+    def pending_consent(self, request_id: str, player_id: str) -> dict:
+        """Only display-safe consent fields for an active, bound pending request."""
+        with self.store.transaction() as db:
+            row = self._request(db, request_id)
+            if row[2] != player_id or not self._active(db, player_id):
+                raise AuthorizeError("access_denied")
+            payload = self.store.decrypt_private("oauth:request:" + row[0], row[3])
+            return {"client_id": row[1], "resource": self.resource, "scopes": payload["scopes"]}
+
+    @_offload
     def approve(self, request_id: str, player_id: str) -> str:
         """Issue one code after Task3 verifies session binding and consent CSRF."""
         with self.store.transaction() as db:

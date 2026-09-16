@@ -499,3 +499,40 @@ def test_read_only_grant_has_no_refresh_and_account_scopes_are_structured(env):
     tokens = run(provider.exchange_authorization_code(app, code))
     assert tokens.refresh_token is None
     assert run(provider.list_grants(alice.id))[0]["scopes"] == ["msf:read"]
+
+
+def test_pending_consent_is_safe_and_bound(env):
+    provider, store, _, now = env
+    app = client()
+    run(provider.register_client(app))
+    request_id = parse_qs(urlparse(run(provider.authorize(app, params()))).query)["request_id"][0]
+    alice = store.player("issuer", "alice")
+    bob = store.player("issuer", "bob")
+    with pytest.raises(AuthorizeError):
+        run(provider.pending_consent(request_id, alice.id))
+    run(provider.complete_login(request_id, alice.id))
+    assert run(provider.pending_consent(request_id, alice.id)) == {
+        "client_id": "chat",
+        "resource": provider.resource,
+        "scopes": ["msf:read", "offline_access"],
+    }
+    with pytest.raises(AuthorizeError):
+        run(provider.pending_consent(request_id, bob.id))
+    now[0] += provider.REQUEST_TTL
+    with pytest.raises(AuthorizeError):
+        run(provider.pending_consent(request_id, alice.id))
+
+
+def test_pending_consent_rejects_resource_and_inactive_player(env):
+    provider, store, _, _ = env
+    app = client()
+    run(provider.register_client(app))
+    request_id = parse_qs(urlparse(run(provider.authorize(app, params()))).query)["request_id"][0]
+    alice = store.player("issuer", "alice")
+    run(provider.complete_login(request_id, alice.id))
+    other = hosted_oauth.HostedOAuthProvider(store, "https://other.example")
+    with pytest.raises(AuthorizeError):
+        run(other.pending_consent(request_id, alice.id))
+    store.deactivate_player(alice.id)
+    with pytest.raises(AuthorizeError):
+        run(provider.pending_consent(request_id, alice.id))
