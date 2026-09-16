@@ -249,3 +249,15 @@ ruff check .
 Die Client-Schicht ist unabhängig von einem Webframework. Der MCP-Adapter bleibt optional; die API-Bibliothek funktioniert auch ohne MCP-Paket.
 Die Tests verwenden synthetische Daten, prüfen OAuth, Dateisicherheit, Abfragen und
 den tatsächlichen MCP-Protokollablauf einschließlich eines separaten Serverprozesses.
+
+## Gehosteter Mehrspielerbetrieb (0.4.0)
+
+Der optionale HTTPS-Dienst trennt Spielerdaten anhand des verifizierten MSF-Kontos
+und verbindet ChatGPT/Claude über widerrufbare OAuth-Zugänge. Installation mit
+`pip install '.[hosted]'`; Einstieg: `python -m msf_assistant hosted --help`.
+Die lokale stdio-Nutzung bleibt verfügbar.
+
+[Serverbetrieb, sichere Konfiguration, Backup und Wiederherstellung](docs/server-operations.md)
+beschreibt das gepinnte Container-Bundle. Genau ein Container und ein Worker sind
+zulässig. Öffentliche Freigabe setzt einen gepflegten Host, eine passende MSF-App
+und erfolgreiche Tests mit den echten Clients voraus.

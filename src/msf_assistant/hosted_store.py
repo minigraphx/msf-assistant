@@ -14,9 +14,11 @@ import json
 import os
 import sqlite3
 import stat
+import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -35,6 +37,46 @@ class Player:
     id: str
     issuer: str
     subject: str
+
+
+class _MaintenanceLease:
+    """Reference-counted flock shared by inherited AnyIO worker contexts."""
+
+    def __init__(self, fd, exclusive):
+        self.fd, self.exclusive = fd, exclusive
+        self.guard = threading.Lock()
+        self.references = 1
+        self.pid = os.getpid()
+
+    def _discard_after_fork(self):
+        if self.pid != os.getpid():
+            # The inherited mutex may have been held by a vanished thread.
+            # Drop this process's descriptor, never unlock the parent's flock.
+            if self.references:
+                os.close(self.fd)
+            self.references = 0
+            self.guard = threading.Lock()
+            self.pid = os.getpid()
+
+    def borrow(self):
+        self._discard_after_fork()
+        with self.guard:
+            if not self.references:
+                return False
+            self.references += 1
+            return True
+
+    def release(self):
+        self._discard_after_fork()
+        with self.guard:
+            if not self.references:
+                return
+            self.references -= 1
+            if not self.references:
+                os.close(self.fd)
+
+
+_maintenance: ContextVar[tuple | None] = ContextVar("maintenance_lease", default=None)
 
 
 class HostedStore:
@@ -141,7 +183,54 @@ class HostedStore:
             raise HostedStoreError("Encryption key or storage verification failed") from None
 
     @contextmanager
+    def maintenance(self, *, exclusive=False):
+        """Lock order: maintenance → player → SQL. Borrowed leases outlive parents.
+
+        Copied contexts with expired leases acquire a fresh OS lock. Upgrades
+        are forbidden; backup uses SQLite directly while holding exclusive.
+        """
+        inherited = _maintenance.get()
+        if inherited is not None and inherited[0] == self.root:
+            lease = inherited[1]
+            if lease.borrow():
+                try:
+                    if exclusive and not lease.exclusive:
+                        raise HostedStoreError("Maintenance lock cannot be upgraded")
+                    yield
+                finally:
+                    lease.release()
+                return
+        path = self.root / "maintenance.lock"
+        self._file(path, create=True)
+        fd = os.open(path, os.O_RDWR | os.O_NOFOLLOW)
+        try:
+            deadline = time.monotonic() + self.LOCK_TIMEOUT_SECONDS
+            while True:
+                try:
+                    fcntl.flock(fd, (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise HostedStoreError("Service maintenance is busy") from None
+                    time.sleep(0.025)
+        except BaseException:
+            os.close(fd)
+            raise
+        lease = _MaintenanceLease(fd, exclusive)
+        token = _maintenance.set((self.root, lease))
+        try:
+            yield
+        finally:
+            _maintenance.reset(token)
+            lease.release()
+
+    @contextmanager
     def _transaction(self, *, initialize: bool = False) -> Iterator[sqlite3.Connection]:
+        with self.maintenance(), self._locked_transaction(initialize=initialize) as db:
+            yield db
+
+    @contextmanager
+    def _locked_transaction(self, *, initialize: bool = False) -> Iterator[sqlite3.Connection]:
         self._validate_storage()
         db = sqlite3.connect(self.database_path, timeout=10, isolation_level=None)
         try:
@@ -254,6 +343,11 @@ class HostedStore:
 
     @contextmanager
     def player_lock(self, player_id: str) -> Iterator[None]:
+        with self.maintenance(), self._locked_player(player_id):
+            yield
+
+    @contextmanager
+    def _locked_player(self, player_id: str) -> Iterator[None]:
         """Bounded cross-process lock; acquire maintenance lock before this lock.
 
         Never hold a SQLite transaction while waiting for a player lock. Callers

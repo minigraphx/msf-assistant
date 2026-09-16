@@ -221,7 +221,7 @@ def create_hosted_app(store, provider, identity, settings, public_url, *, limits
     sync = HostedSync(store, settings)
     server = AdvisorServer(
         "MSF Assistant",
-        version="0.3.0",
+        version="0.4.0",
         instructions=ADVISOR_INSTRUCTIONS,
         log_level="WARNING",
         token_verifier=ProviderTokenVerifier(provider),

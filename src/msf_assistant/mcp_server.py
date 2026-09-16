@@ -83,7 +83,7 @@ def create_server(
     context = ContextStore(context_path or snapshot.parent / "msf-advisor-context.json")
     server = AdvisorServer(
         "MSF Assistant",
-        version="0.3.0",
+        version="0.4.0",
         instructions=ADVISOR_INSTRUCTIONS,
         log_level="WARNING",
     )

@@ -129,6 +129,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Lokaler MSF-Login und privater Roster-Abruf")
     parser.add_argument("--env-file", default=".env", help="Lokale Konfigurationsdatei")
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("hosted", help="Hosted service, backup and recovery commands")
     login = commands.add_parser("login", help="MSF-Anmeldung im Browser und erster Datenabruf")
     login.add_argument("--no-browser", action="store_true", help="Startseite selbst öffnen")
     login.add_argument(
@@ -243,6 +244,10 @@ def sync_saved(env_file: Path, output: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "hosted":
+        from msf_assistant.hosted_cli import main as hosted_main
+        return hosted_main(argv[1:])
     args = _parser().parse_args(argv)
     try:
         if args.command in ("login", "sync", "logout"):

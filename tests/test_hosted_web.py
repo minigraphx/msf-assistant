@@ -357,3 +357,13 @@ def test_selected_callback_identifies_each_opaque_client_grant(setup):
     page = browser.get("/account")
     assert "Unbekannte Verbindung (ältere Freigabe)" in page.text
     assert "ChatGPT (chatgpt.com)" not in page.text
+
+
+def test_home_explains_configured_connector_url_and_clients(setup):
+    _, _, _, browser = setup
+    text = browser.get("/").text
+    assert ORIGIN + "/mcp" in text
+    assert "ChatGPT" in text and "Claude" in text
+    assert "developers.openai.com/plugins/deploy/connect-chatgpt" in text
+    assert "claude.com/docs/connectors/custom/remote-mcp" in text
+    assert 'href="/privacy.html"' in text

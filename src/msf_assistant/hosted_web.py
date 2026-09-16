@@ -195,6 +195,21 @@ def account_routes(store, provider, identity, public_url):
             "im Assistenten aktualisieren. Die Anmeldung startet keine vollständige "
             'Synchronisierung.</p><a href="/login">Mit MSF anmelden / registrieren</a> '
             '<a href="/account">Konto und Verbindungen</a>'
+            "<h2>Mit ChatGPT oder Claude verbinden</h2>"
+            "<p>Verwende diese MCP-Adresse: <code>" + escape(public_url + "/mcp") + "</code></p>"
+            "<ol><li><strong>ChatGPT:</strong> Öffne Einstellungen → Sicherheit und Anmeldung "
+            "→ Entwicklermodus. Füge unter Plugins den öffentlichen MCP-Server mit der "
+            "obigen Adresse hinzu und wähle Verbinden. "
+            '<a href="https://developers.openai.com/plugins/deploy/connect-chatgpt">'
+            "Offizielle ChatGPT-Anleitung</a>.</li>"
+            "<li><strong>Claude:</strong> Öffne Anpassen → Connectors → Eigenen Connector "
+            "hinzufügen. Trage die Adresse ein und melde dich an. "
+            '<a href="https://claude.com/docs/connectors/custom/remote-mcp">'
+            "Offizielle Claude-Anleitung</a>.</li></ol>"
+            "<p>Der Client registriert sich automatisch. Melde dich im Browser bei deinem "
+            "eigenen MSF-Konto an und bestätige die angefragten Rechte. Du brauchst keinen "
+            "MSF-App-Schlüssel oder Client-Secret. Verfügbarkeit und Freigaben hängen vom "
+            "Tarif und den Regeln deines Arbeitsbereichs ab.</p>"
         )
 
     async def privacy(request):
