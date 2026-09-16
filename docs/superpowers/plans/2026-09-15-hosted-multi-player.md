@@ -143,8 +143,9 @@ assert (await provider.load_access_token(bob_access)).subject == bob.id
 ## Progress
 
 - Baseline in isolated worktree: 148 tests passed.
-- Task 1 complete at 21bc9ec: 27 focused tests, previous full suite 174 tests, Ruff and independent review passed. Latest commit pending GitHub destination confirmation.
-- Task 2 complete at 2130b6e: durable OAuth, 211 tests passed before the two added refresh-resource cases; scoped HTTP checks and independent review passed. One upstream Starlette deprecation warning remains visible. GitHub destination confirmation is pending.
+- Task 1 complete at 21bc9ec: 27 focused tests, previous full suite 174 tests, Ruff and independent review passed. Committed and pushed to GitHub.
+- Task 2 complete at 2130b6e: durable OAuth, 211 tests passed before the two added refresh-resource cases; scoped HTTP checks and independent review passed. One upstream Starlette deprecation warning remains visible. Committed and pushed to GitHub.
 - Task 3 complete at 220f574: verified MSF identity, protected browser sessions, German consent/account pages and per-client revocation. Focused tests and independent review passed; real account acceptance remains pending.
+- Task 4 complete at 6d54307: HTTP MCP, isolated player backends and bounded synchronization; 265 tests, Ruff and independent review passed. Separate grants for one player share context in real SDK/HTTP tests. Container and live-client verification remain pending.
 - Implementation progress is recorded in MIN-118; project remains open.
 - Implementation and deployment are not yet complete.
