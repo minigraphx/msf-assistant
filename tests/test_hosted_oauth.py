@@ -254,7 +254,12 @@ def test_pending_player_binding_expiry_and_grant_ownership(env):
         run(provider.approve(request_id, alice.id))
 
 
-def test_sdk_http_routes_public_metadata_token_resource_and_rotation(env):
+@pytest.mark.parametrize(
+    "refresh_resource",
+    [None, "https://evil.example/mcp", ["https://msf.example/mcp"] * 2],
+    ids=["missing-refresh-resource", "wrong-refresh-resource", "duplicate-refresh-resource"],
+)
+def test_sdk_http_routes_public_metadata_token_resource_and_rotation(env, refresh_resource):
     from starlette.applications import Starlette
     from starlette.testclient import TestClient
 
@@ -289,9 +294,12 @@ def test_sdk_http_routes_public_metadata_token_resource_and_rotation(env):
             grant_type="refresh_token",
             refresh_token=refresh,
             client_id=app.client_id,
-            resource="https://evil.example/mcp",
         )
-        assert http.post("/token", data=refresh_data).json()["error"] == "invalid_target"
+        if refresh_resource is not None:
+            refresh_data["resource"] = refresh_resource
+        rejected = http.post("/token", data=refresh_data)
+        assert rejected.status_code == 400
+        assert rejected.json()["error"] == "invalid_target"
         refresh_data["resource"] = "https://msf.example/mcp"
         assert http.post("/token", data=refresh_data).status_code == 200
         assert http.post("/token", data=refresh_data).status_code == 400
