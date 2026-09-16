@@ -187,6 +187,10 @@ class HostedOAuthProvider:
                 "CREATE INDEX IF NOT EXISTS oauth_token_grant ON oauth_tokens(grant_id)",
             ):
                 db.execute(statement)
+            # Nullable migration preserves legacy grants without guessing their callback.
+            columns = {row[1] for row in db.execute("PRAGMA table_info(oauth_grants)")}
+            if "callback_origin" not in columns:
+                db.execute("ALTER TABLE oauth_grants ADD COLUMN callback_origin TEXT")
 
     def _cleanup(self, db):
         now = time.time()
@@ -338,7 +342,20 @@ class HostedOAuthProvider:
             if row[2] != player_id or not self._active(db, player_id):
                 raise AuthorizeError("access_denied")
             payload = self.store.decrypt_private("oauth:request:" + row[0], row[3])
-            return {"client_id": row[1], "resource": self.resource, "scopes": payload["scopes"]}
+            return {
+                "client_id": row[1],
+                "resource": self.resource,
+                "scopes": payload["scopes"],
+                "callback_origin": self._callback_origin(payload["redirect_uri"]),
+            }
+
+    @staticmethod
+    def _callback_origin(redirect_uri: str) -> str | None:
+        """Recognize only the exact HTTPS origins allowed by registration."""
+        parts = urlsplit(redirect_uri)
+        if parts.scheme == "https" and parts.netloc in {"chatgpt.com", "claude.ai"}:
+            return "https://" + parts.netloc
+        return None
 
     @_offload
     def approve(self, request_id: str, player_id: str) -> str:
@@ -350,7 +367,9 @@ class HostedOAuthProvider:
             payload = self.store.decrypt_private("oauth:request:" + row[0], row[3])
             grant = secrets.token_urlsafe(24)
             db.execute(
-                "INSERT INTO oauth_grants VALUES (?, ?, ?, ?, ?, ?, 0)",
+                "INSERT INTO oauth_grants "
+                "(id, client, player, resource, scopes, expires, revoked, callback_origin) "
+                "VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
                 (
                     grant,
                     row[1],
@@ -358,6 +377,7 @@ class HostedOAuthProvider:
                     self.resource,
                     json.dumps(payload["scopes"]),
                     time.time() + self.FAMILY_TTL,
+                    self._callback_origin(payload["redirect_uri"]),
                 ),
             )
             raw = secrets.token_urlsafe(32)
@@ -526,7 +546,7 @@ class HostedOAuthProvider:
                 dict(row) | {"scopes": json.loads(row["scopes"])}
                 for row in db.execute(
                     "SELECT g.id, g.client AS client_id, g.resource, g.scopes, "
-                    "g.expires AS expires_at "
+                    "g.expires AS expires_at, g.callback_origin "
                     "FROM oauth_grants g JOIN players p ON p.id=g.player "
                     "WHERE g.player=? AND p.active=1 AND g.revoked=0 AND g.expires>?",
                     (player_id, time.time()),

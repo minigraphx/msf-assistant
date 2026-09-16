@@ -20,6 +20,18 @@ COOKIE = "__Host-msf_session"
 SESSION_TTL = 8 * 3600
 LOGIN_TTL = 600
 MAX_SESSIONS = 1000
+PERMISSIONS = {
+    "msf:read": "Eigene Spieldaten und Kontext lesen",
+    "msf:write": "Eigenen Spielkontext ändern und Daten aktualisieren",
+    "offline_access": "Zugriff ohne erneute Anmeldung (bis zu 30 Tage)",
+}
+
+
+def client_label(connection):
+    return {
+        "https://chatgpt.com": "ChatGPT (chatgpt.com)",
+        "https://claude.ai": "Claude (claude.ai)",
+    }.get(connection.get("callback_origin"), "Unbekannte Verbindung (ältere Freigabe)")
 
 
 def digest(value):
@@ -253,13 +265,16 @@ def account_routes(store, provider, identity, public_url):
         if request.method == "POST":
             await post(request)
             return redirect(await provider.approve(request_id, payload["player"]))
-        scopes = {
-            "msf:read": "Eigene Spieldaten und Kontext lesen",
-            "msf:write": "Eigenen Spielkontext ändern und Daten aktualisieren",
-            "offline_access": "Zugriff ohne erneute Anmeldung (bis zu 30 Tage)",
-        }
-        body = "<h1>Verbindung erlauben</h1><p>Client: " + escape(pending["client_id"]) + "</p><ul>"
-        body += "".join("<li>" + escape(scopes[s]) + "</li>" for s in pending["scopes"]) + "</ul>"
+        body = (
+            "<h1>Verbindung erlauben</h1><p>"
+            + escape(client_label(pending))
+            + "</p><p>Verbindungskennung: "
+            + escape(pending["client_id"])
+            + "</p><ul>"
+        )
+        body += (
+            "".join("<li>" + escape(PERMISSIONS[s]) + "</li>" for s in pending["scopes"]) + "</ul>"
+        )
         action = "/consent?request_id=" + escape(request_id, quote=True)
         return page(
             body
@@ -279,9 +294,11 @@ def account_routes(store, provider, identity, public_url):
         for grant in grants:
             body += (
                 "<p>"
+                + escape(client_label(grant))
+                + "</p><p>Verbindungskennung: "
                 + escape(grant["client_id"])
-                + ": "
-                + escape(", ".join(grant["scopes"]))
+                + "</p><p>"
+                + escape("; ".join(PERMISSIONS[s] for s in grant["scopes"]))
                 + "</p>"
             )
             body += form(

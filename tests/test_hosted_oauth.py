@@ -513,6 +513,7 @@ def test_pending_consent_is_safe_and_bound(env):
     run(provider.complete_login(request_id, alice.id))
     assert run(provider.pending_consent(request_id, alice.id)) == {
         "client_id": "chat",
+        "callback_origin": "https://chatgpt.com",
         "resource": provider.resource,
         "scopes": ["msf:read", "offline_access"],
     }
@@ -536,3 +537,18 @@ def test_pending_consent_rejects_resource_and_inactive_player(env):
     store.deactivate_player(alice.id)
     with pytest.raises(AuthorizeError):
         run(provider.pending_consent(request_id, alice.id))
+
+
+def test_grant_origin_migration_preserves_legacy_grant_without_guessing(env):
+    provider, store, _, _ = env
+    alice, tokens, _ = tokens_for(provider, store)
+    with store.transaction() as db:
+        columns = {row[1] for row in db.execute("PRAGMA table_info(oauth_grants)")}
+        if "callback_origin" in columns:
+            db.execute("ALTER TABLE oauth_grants DROP COLUMN callback_origin")
+    reopened = hosted_oauth.HostedOAuthProvider(store, provider.public_url)
+    reopened = hosted_oauth.HostedOAuthProvider(store, provider.public_url)
+    grants = run(reopened.list_grants(alice.id))
+    assert len(grants) == 1
+    assert grants[0]["callback_origin"] is None
+    assert run(reopened.load_access_token(tokens.access_token)).subject == alice.id

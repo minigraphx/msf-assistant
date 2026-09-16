@@ -277,3 +277,77 @@ def test_chunked_form_is_bounded(setup):
         headers={"Origin": ORIGIN, "Content-Type": "application/x-www-form-urlencoded"},
     )
     assert response.status_code == 400
+
+
+def test_selected_callback_identifies_each_opaque_client_grant(setup):
+    import asyncio
+
+    from mcp.server.auth.provider import AuthorizationParams
+    from mcp.shared.auth import OAuthClientInformationFull
+
+    store, provider, identity, browser = setup
+    app = OAuthClientInformationFull(
+        client_id="opaque-8ac3",
+        client_name="Misleading Other Service",
+        redirect_uris=["https://chatgpt.com/callback", "https://claude.ai/callback"],
+        token_endpoint_auth_method="none",
+        grant_types=["authorization_code"],
+        response_types=["code"],
+        scope="msf:read msf:write",
+    )
+    asyncio.run(provider.register_client(app))
+    second = app.model_copy(update={"client_id": "opaque-92fb", "client_name": "Claude"})
+    asyncio.run(provider.register_client(second))
+    for selected, origin, label in [
+        (app, "https://claude.ai", "Claude (claude.ai)"),
+        (app, "https://chatgpt.com", "ChatGPT (chatgpt.com)"),
+        (second, "https://chatgpt.com", "ChatGPT (chatgpt.com)"),
+    ]:
+        target = asyncio.run(
+            provider.authorize(
+                selected,
+                AuthorizationParams(
+                    state="state",
+                    scopes=["msf:read", "msf:write"],
+                    code_challenge="x" * 43,
+                    redirect_uri=origin + "/callback",
+                    redirect_uri_provided_explicitly=True,
+                    resource=provider.resource,
+                ),
+            )
+        )
+        page = browser.get(target)
+        response = browser.post("/login", data={"csrf": csrf(page)}, headers={"Origin": ORIGIN})
+        state = parse_qs(urlsplit(response.headers["location"]).query)["state"][0]
+        response = browser.get("/oauth/callback", params={"state": state, "code": "code"})
+        target = response.headers["location"]
+        page = browser.get(target)
+        assert label in page.text
+        assert "Misleading Other Service" not in page.text
+        assert (
+            browser.post(target, data={"csrf": csrf(page)}, headers={"Origin": ORIGIN}).status_code
+            == 303
+        )
+    page = browser.get("/account")
+    assert "Claude (claude.ai)" in page.text and "ChatGPT (chatgpt.com)" in page.text
+    assert "msf:read" not in page.text and "msf:write" not in page.text
+    assert "Eigene Spieldaten und Kontext lesen" in page.text
+    assert "Eigenen Spielkontext ändern und Daten aktualisieren" in page.text
+    alice = store.player("https://hydra-public.prod.m3.scopelypv.com/", "alice")
+    grants = asyncio.run(provider.list_grants(alice.id))
+    claude = next(g for g in grants if g["callback_origin"] == "https://claude.ai")
+    assert re.search(r'Claude \(claude.ai\).*?name="grant" value="' + claude["id"] + '"', page.text)
+    browser.post(
+        "/account/revoke",
+        data={"csrf": csrf(page), "grant": claude["id"]},
+        headers={"Origin": ORIGIN},
+    )
+    page = browser.get("/account")
+    assert "Claude (claude.ai)" not in page.text
+    assert "ChatGPT (chatgpt.com)" in page.text
+
+    with store.transaction() as db:
+        db.execute("UPDATE oauth_grants SET callback_origin=NULL WHERE player=?", (alice.id,))
+    page = browser.get("/account")
+    assert "Unbekannte Verbindung (ältere Freigabe)" in page.text
+    assert "ChatGPT (chatgpt.com)" not in page.text
