@@ -11,10 +11,12 @@ from msf_assistant.hosted_oauth import HostedOAuthProvider
 from msf_assistant.hosted_store import HostedStore
 
 
-def issue(store, provider, subject, scopes):
+def issue(store, provider, subject, scopes, *, client_id):
     async def mint():
-        app = client(subject)
-        await provider.register_client(app)
+        app = await provider.get_client(client_id)
+        if app is None:
+            app = client(client_id)
+            await provider.register_client(app)
         player = store.player("issuer", subject)
         login = await provider.authorize(app, params(scopes=scopes))
         request_id = parse_qs(urlparse(login).query)["request_id"][0]
@@ -33,8 +35,8 @@ def env(tmp_path):
 
     store = HostedStore(tmp_path / "private", Fernet.generate_key())
     provider = HostedOAuthProvider(store, "https://msf.example")
-    alice, a = issue(store, provider, "alice", ["msf:read", "msf:write"])
-    bob, b = issue(store, provider, "bob", ["msf:read"])
+    alice, a = issue(store, provider, "alice", ["msf:read", "msf:write"], client_id="chatgpt")
+    bob, b = issue(store, provider, "bob", ["msf:read"], client_id="chatgpt")
     app = create_hosted_app(store, provider, object(), Settings("test"), "https://msf.example")
     return app, store, provider, alice, a, bob, b
 
@@ -138,7 +140,7 @@ def test_revoke_wrong_resource_expiry_and_recreation(env):
                 "UPDATE oauth_grants SET expires=? WHERE player=?", (time.time() - 1, bob.id)
             )
         assert rpc(http, b.access_token, "tools/list").status_code == 401
-    player, c = issue(store, provider, "revoked", ["msf:read"])
+    player, c = issue(store, provider, "revoked", ["msf:read"], client_id="revoked-client")
     asyncio.run(provider.revoke_player(player.id))
     with TestClient(app, base_url="https://msf.example") as http:
         assert rpc(http, c.access_token, "prompts/list").status_code == 401
@@ -166,48 +168,77 @@ def test_real_loopback_sdk_two_clients_and_reconnect(env):
         time.sleep(0.01)
     assert server.started
 
-    async def check():
-        async def connect(token, title):
-            async with (
-                httpx2.AsyncClient(
-                    headers={
-                        "Authorization": "Bearer " + token,
-                        "Mcp-Session-Id": "foreign-session",
-                        "Last-Event-ID": "foreign-request",
-                    }
-                ) as http,
-                streamable_http_client(f"http://127.0.0.1:{port}/mcp", http_client=http) as streams,
-                ClientSession(*streams) as session,
-            ):
-                await session.initialize()
-                tools = await session.list_tools()
-                assert any(tool.name == "get_advisor_context" for tool in tools.tools)
-                if title:
-                    result = await session.call_tool(
-                        "save_goal",
-                        dict(
-                            expected_revision=0,
-                            title=title,
-                            description="",
-                            status="selected",
-                            provenance="test",
-                        ),
-                    )
-                    assert not result.is_error
-                result = await session.call_tool("get_advisor_context")
-                assert ("Alice persistent" in str(result)) == bool(title)
-                await session.get_prompt("plan_upgrades", {"question": "test"})
+    from contextlib import asynccontextmanager
 
-        await asyncio.gather(
-            connect(a.access_token, "Alice persistent"), connect(b.access_token, None)
-        )
+    alice_again, claude = issue(
+        store, provider, "alice", ["msf:read", "msf:write"], client_id="claude"
+    )
+    assert alice_again.id == alice.id
+    assert claude.access_token != a.access_token
+
+    @asynccontextmanager
+    async def connect(token):
         async with (
-            httpx2.AsyncClient(headers={"Authorization": "Bearer " + a.access_token}) as http,
+            httpx2.AsyncClient(
+                headers={
+                    "Authorization": "Bearer " + token,
+                    "Mcp-Session-Id": "foreign-session",
+                    "Last-Event-ID": "foreign-request",
+                }
+            ) as http,
             streamable_http_client(f"http://127.0.0.1:{port}/mcp", http_client=http) as streams,
             ClientSession(*streams) as session,
         ):
             await session.initialize()
-            assert "Alice persistent" in str(await session.call_tool("get_advisor_context"))
+            tools = await session.list_tools()
+            assert any(tool.name == "get_advisor_context" for tool in tools.tools)
+            yield session
+
+    async def check():
+        async with (
+            connect(a.access_token) as chatgpt,
+            connect(claude.access_token) as second_client,
+            connect(b.access_token) as bob_client,
+        ):
+            saved = await chatgpt.call_tool(
+                "save_goal",
+                dict(
+                    expected_revision=0,
+                    title="From ChatGPT",
+                    description="",
+                    status="selected",
+                    provenance="test",
+                ),
+            )
+            assert not saved.is_error
+            shared = await second_client.call_tool("get_advisor_context")
+            assert shared.structured_content["revision"] == 1
+            assert "From ChatGPT" in str(shared)
+            updated = await second_client.call_tool(
+                "save_goal",
+                dict(
+                    expected_revision=1,
+                    title="From Claude",
+                    description="",
+                    status="selected",
+                    provenance="test",
+                ),
+            )
+            assert not updated.is_error
+            shared, isolated = await asyncio.gather(
+                chatgpt.call_tool("get_advisor_context"),
+                bob_client.call_tool("get_advisor_context"),
+            )
+            assert shared.structured_content["revision"] == 2
+            assert "From ChatGPT" in str(shared) and "From Claude" in str(shared)
+            assert isolated.structured_content["revision"] == 0
+            assert not isolated.structured_content["goals"]
+            await second_client.get_prompt("plan_upgrades", {"question": "test"})
+        # Reconnect with Alice's other independently issued client grant.
+        async with connect(claude.access_token) as reconnected:
+            durable = await reconnected.call_tool("get_advisor_context")
+            assert durable.structured_content["revision"] == 2
+            assert "From ChatGPT" in str(durable) and "From Claude" in str(durable)
 
     try:
         asyncio.run(check())
@@ -351,24 +382,30 @@ def test_snapshot_reads_and_context_survive_app_recreation(env):
     from msf_assistant.hosted_server import create_hosted_app
 
     app, store, provider, alice, a, bob, b = env
+    alice_again, claude = issue(
+        store, provider, "alice", ["msf:read", "msf:write"], client_id="claude"
+    )
+    assert alice_again.id == alice.id
+    assert asyncio.run(provider.load_access_token(a.access_token)).client_id == "chatgpt"
+    assert asyncio.run(provider.load_access_token(claude.access_token)).client_id == "claude"
     write_snapshot(store.player_dir(alice.id), profile={"data": {"name": "Alice synthetic"}})
     write_snapshot(store.player_dir(bob.id), profile={"data": {"name": "Bob synthetic"}})
-    with TestClient(app, base_url="https://msf.example") as http:
-        for token, expected, other in [
-            (a, "Alice synthetic", "Bob synthetic"),
-            (b, "Bob synthetic", "Alice synthetic"),
-        ]:
-            response = rpc(http, token.access_token, "tools/call", {"name": "get_player_profile"})
-            assert expected in response.text and other not in response.text
+
+    def context(http, token):
+        response = rpc(http, token.access_token, "tools/call", {"name": "get_advisor_context"})
+        assert response.status_code == 200
+        return response.json()["result"]["structuredContent"]
+
+    def save(http, token, revision, title):
         response = rpc(
             http,
-            a.access_token,
+            token.access_token,
             "tools/call",
             {
                 "name": "save_goal",
                 "arguments": dict(
-                    expected_revision=0,
-                    title="Durable",
+                    expected_revision=revision,
+                    title=title,
                     description="",
                     status="selected",
                     provenance="test",
@@ -376,16 +413,34 @@ def test_snapshot_reads_and_context_survive_app_recreation(env):
             },
         )
         assert not response.json()["result"].get("isError")
+
+    with TestClient(app, base_url="https://msf.example") as http:
+        for token, expected, other in [
+            (a, "Alice synthetic", "Bob synthetic"),
+            (claude, "Alice synthetic", "Bob synthetic"),
+            (b, "Bob synthetic", "Alice synthetic"),
+        ]:
+            response = rpc(http, token.access_token, "tools/call", {"name": "get_player_profile"})
+            assert expected in response.text and other not in response.text
+        save(http, a, 0, "ChatGPT durable goal")
+        assert context(http, claude)["revision"] == 1
+        save(http, claude, 1, "Claude durable goal")
+        assert context(http, a)["revision"] == 2
+        assert context(http, b)["revision"] == 0
     rebuilt = create_hosted_app(store, provider, object(), Settings("test"), "https://msf.example")
     with TestClient(rebuilt, base_url="https://msf.example") as http:
-        assert (
-            "Durable"
-            in rpc(http, a.access_token, "tools/call", {"name": "get_advisor_context"}).text
-        )
-        assert (
-            "Durable"
-            not in rpc(http, b.access_token, "tools/call", {"name": "get_advisor_context"}).text
-        )
+        first = context(http, a)
+        second = context(http, claude)
+        assert first == second
+        assert first["revision"] == 2
+        assert {goal["title"] for goal in first["goals"]} == {
+            "ChatGPT durable goal",
+            "Claude durable goal",
+        }
+        save(http, claude, 2, "After recreation")
+        assert context(http, a)["revision"] == 3
+        assert context(http, b)["revision"] == 0
+        assert not context(http, b)["goals"]
 
 
 def test_auth_storage_failure_returns_secret_free_error(env, monkeypatch):

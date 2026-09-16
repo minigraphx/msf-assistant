@@ -9,6 +9,7 @@ from typing import Any
 import requests
 
 from msf_assistant.config import Settings
+from msf_assistant.hosted_transport import bounded_request_options
 
 JsonObject = dict[str, Any]
 
@@ -44,7 +45,7 @@ class MSFAPIClient:
             f"{self.settings.api_base_url}/{path.lstrip('/')}",
             params=params,
             timeout=self.settings.request_timeout,
-            **({"stream": True} if self.remaining_bytes is not None else {}),
+            **(bounded_request_options() if self.remaining_bytes is not None else {}),
         )
         response.raise_for_status()
         try:

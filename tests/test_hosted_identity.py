@@ -5,6 +5,7 @@ import pytest
 
 from msf_assistant.config import Settings
 from msf_assistant.hosted_identity import ISSUER, MSFIdentity
+from msf_assistant.hosted_transport import bounded_request_options
 
 
 def settings(**kw):
@@ -49,8 +50,7 @@ def test_verified_identity():
         ISSUER + "userinfo",
         headers={"Authorization": "Bearer access"},
         timeout=30.0,
-        allow_redirects=False,
-        stream=True,
+        **bounded_request_options(),
     )
 
 

@@ -27,7 +27,7 @@ def test_refresh_persists_rotated_credentials_before_failed_fetch(tmp_path, monk
     assert output.read_text() == "old snapshot"
 
 
-def test_context_limit_preserves_previous_file(tmp_path):
+def test_context_limit_rejects_without_creating_file(tmp_path):
     from msf_assistant.advisor_context import ContextError, ContextStore
 
     context = ContextStore(tmp_path / "context.json", max_bytes=300)
@@ -206,3 +206,88 @@ def test_hosted_userinfo_response_is_bounded():
     with pytest.raises(ValueError, match="too large"):
         identity.exchange("code")
     response.json.assert_not_called()
+
+
+@pytest.mark.parametrize("endpoint", ["api", "token", "userinfo"])
+def test_hosted_redirect_rejected_without_consuming_body(endpoint, monkeypatch):
+    """Exercise real Requests Session.send/resolve_redirects, without a network."""
+    import io
+    from functools import partial
+
+    import requests
+
+    from msf_assistant.auth import MSFOAuth2
+    from msf_assistant.client import MSFAPIClient
+    from msf_assistant.hosted_identity import MSFIdentity
+
+    class Probe(io.BytesIO):
+        bytes_read = 0
+
+        def read(self, amount=-1):
+            data = super().read(amount)
+            self.bytes_read += len(data)
+            return data
+
+    class Adapter(requests.adapters.BaseAdapter):
+        calls = 0
+
+        def send(self, request, **kwargs):
+            self.calls += 1
+            response = requests.Response()
+            response.request = request
+            response.url = request.url
+            response.status_code = 302 if self.calls == 1 else 200
+            response.headers["Location"] = "https://upstream.example/redirected"
+            response.raw = raw if self.calls == 1 else io.BytesIO(b'{"data":{}}')
+            return response
+
+        def close(self):
+            pass
+
+    raw = Probe(b"x" * 131072)
+    adapter = Adapter()
+    settings = Settings("app", client_secret="secret")
+    with requests.Session() as session:
+        session.mount("https://", adapter)
+        if endpoint == "api":
+            operation = MSFAPIClient(settings, "access", session, max_bytes=65536).player_profile
+        elif endpoint == "token":
+            oauth = MSFOAuth2(settings, session, max_response_bytes=65536)
+            operation = partial(oauth.refresh, "refresh")
+        else:
+            identity = MSFIdentity(settings)
+            identity.oauth.session = session
+            monkeypatch.setattr(identity.oauth, "exchange_code", lambda code: TokenSet("access"))
+            operation = partial(identity.exchange, "code")
+        caught = None
+        try:
+            operation()
+        except (ValueError, requests.RequestException) as exc:
+            caught = exc
+        assert raw.bytes_read == 0
+        assert raw.closed
+        assert adapter.calls == 1
+        assert caught is not None
+        assert str(caught) == "Upstream redirect rejected"
+
+
+def test_context_limit_preserves_existing_valid_file(tmp_path):
+    from msf_assistant.advisor_context import ContextError, ContextStore
+
+    path = tmp_path / "context.json"
+    original = ContextStore(path).save_goal(
+        expected_revision=0, title="Existing", description="", status="selected", provenance="test"
+    )
+    previous = path.read_bytes()
+    limited = ContextStore(path, max_bytes=len(previous))
+    with pytest.raises(ContextError, match="too large"):
+        limited.save_goal(
+            expected_revision=1,
+            title="Existing",
+            description="x" * 100,
+            status="selected",
+            provenance="test",
+            record_id=original["goals"][0]["id"],
+        )
+    assert path.read_bytes() == previous
+    assert limited.read() == original

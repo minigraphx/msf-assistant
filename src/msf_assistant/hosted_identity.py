@@ -4,6 +4,7 @@ import math
 
 from msf_assistant.auth import MSFOAuth2, TokenSet, bounded_response_json
 from msf_assistant.config import DEFAULT_OAUTH_BASE_URL, Settings
+from msf_assistant.hosted_transport import bounded_request_options
 
 IDENTITY_RESPONSE_BYTES = 64 * 1024
 ISSUER = "https://hydra-public.prod.m3.scopelypv.com/"
@@ -26,8 +27,7 @@ class MSFIdentity:
             ISSUER + "userinfo",
             headers={"Authorization": "Bearer " + tokens.access_token},
             timeout=self.oauth.settings.request_timeout,
-            allow_redirects=False,
-            stream=True,
+            **bounded_request_options(),
         )
         response.raise_for_status()
         if response.status_code != 200:

@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, quote_plus, urlencode, urlparse
 import requests
 
 from msf_assistant.config import Settings
+from msf_assistant.hosted_transport import bounded_request_options
 
 DEFAULT_SCOPES = ("openid", "offline", "m3p.f.pr.pro", "m3p.f.pr.ros", "m3p.f.pr.inv")
 
@@ -117,9 +118,12 @@ class MSFOAuth2:
             data=data,
             # OAuth Basic credentials are form-encoded before Base64 encoding.
             auth=(quote_plus(self.settings.client_id), quote_plus(secret)),
-            allow_redirects=False,
             timeout=self.settings.request_timeout,
-            **({"stream": True} if self.max_response_bytes is not None else {}),
+            **(
+                bounded_request_options()
+                if self.max_response_bytes is not None
+                else {"allow_redirects": False}
+            ),
         )
         response.raise_for_status()
         payload = (
