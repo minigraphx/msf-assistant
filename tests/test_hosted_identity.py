@@ -1,3 +1,4 @@
+import json
 from unittest.mock import Mock
 
 import pytest
@@ -19,6 +20,11 @@ def test_reject_untrusted_config():
 def test_userinfo_requires_subject(subject):
     identity = MSFIdentity(settings())
     identity.oauth.session = Mock()
+    for method in (identity.oauth.session.get, identity.oauth.session.post):
+        response = method.return_value
+        response.iter_content.side_effect = lambda chunk_size, r=response: [
+            json.dumps(r.json.return_value).encode()
+        ]
     identity.oauth.session.get.return_value.status_code = 200
     identity.oauth.session.post.return_value.json.return_value = {"access_token": "access"}
     identity.oauth.session.get.return_value.json.return_value = {"sub": subject}
@@ -29,6 +35,11 @@ def test_userinfo_requires_subject(subject):
 def test_verified_identity():
     identity = MSFIdentity(settings())
     identity.oauth.session = Mock()
+    for method in (identity.oauth.session.get, identity.oauth.session.post):
+        response = method.return_value
+        response.iter_content.side_effect = lambda chunk_size, r=response: [
+            json.dumps(r.json.return_value).encode()
+        ]
     identity.oauth.session.get.return_value.status_code = 200
     identity.oauth.session.post.return_value.json.return_value = {"access_token": "access"}
     identity.oauth.session.get.return_value.json.return_value = {"sub": "alice"}
@@ -39,6 +50,7 @@ def test_verified_identity():
         headers={"Authorization": "Bearer access"},
         timeout=30.0,
         allow_redirects=False,
+        stream=True,
     )
 
 
@@ -51,6 +63,11 @@ def test_timeout_must_be_finite(timeout):
 def test_userinfo_redirect_is_rejected():
     identity = MSFIdentity(settings())
     identity.oauth.session = Mock()
+    for method in (identity.oauth.session.get, identity.oauth.session.post):
+        response = method.return_value
+        response.iter_content.side_effect = lambda chunk_size, r=response: [
+            json.dumps(r.json.return_value).encode()
+        ]
     identity.oauth.session.get.return_value.status_code = 200
     identity.oauth.session.post.return_value.json.return_value = {"access_token": "access"}
     identity.oauth.session.get.return_value.status_code = 302

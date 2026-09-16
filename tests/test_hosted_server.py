@@ -1,0 +1,414 @@
+import asyncio
+from urllib.parse import parse_qs, urlparse
+
+import pytest
+from cryptography.fernet import Fernet
+from starlette.testclient import TestClient
+from test_hosted_oauth import client, params
+
+from msf_assistant.config import Settings
+from msf_assistant.hosted_oauth import HostedOAuthProvider
+from msf_assistant.hosted_store import HostedStore
+
+
+def issue(store, provider, subject, scopes):
+    async def mint():
+        app = client(subject)
+        await provider.register_client(app)
+        player = store.player("issuer", subject)
+        login = await provider.authorize(app, params(scopes=scopes))
+        request_id = parse_qs(urlparse(login).query)["request_id"][0]
+        await provider.complete_login(request_id, player.id)
+        callback = await provider.approve(request_id, player.id)
+        raw = parse_qs(urlparse(callback).query)["code"][0]
+        code = await provider.load_authorization_code(app, raw)
+        return player, await provider.exchange_authorization_code(app, code)
+
+    return asyncio.run(mint())
+
+
+@pytest.fixture
+def env(tmp_path):
+    from msf_assistant.hosted_server import create_hosted_app
+
+    store = HostedStore(tmp_path / "private", Fernet.generate_key())
+    provider = HostedOAuthProvider(store, "https://msf.example")
+    alice, a = issue(store, provider, "alice", ["msf:read", "msf:write"])
+    bob, b = issue(store, provider, "bob", ["msf:read"])
+    app = create_hosted_app(store, provider, object(), Settings("test"), "https://msf.example")
+    return app, store, provider, alice, a, bob, b
+
+
+def rpc(http, token, method, params=None, **kwargs):
+    return http.post(
+        "/mcp",
+        headers={
+            "Authorization": "Bearer " + token,
+            "Accept": "application/json, text/event-stream",
+        },
+        json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}},
+        **kwargs,
+    )
+
+
+def test_auth_isolation_scopes_and_prompt(env):
+    app, store, provider, alice, a, bob, b = env
+    with TestClient(app, base_url="https://msf.example") as http:
+        response = http.post("/mcp")
+        assert response.status_code == 401
+        assert "resource_metadata=" in response.headers["www-authenticate"]
+        args = dict(
+            expected_revision=0,
+            title="Alice goal",
+            description="",
+            status="proposed",
+            provenance="test",
+        )
+        assert (
+            rpc(
+                http, b.access_token, "tools/call", {"name": "save_goal", "arguments": args}
+            ).status_code
+            == 403
+        )
+        saved = rpc(http, a.access_token, "tools/call", {"name": "save_goal", "arguments": args})
+        assert saved.status_code == 200, saved.text
+        assert "Alice goal" in saved.text
+        other = rpc(http, b.access_token, "tools/call", {"name": "get_advisor_context"})
+        assert "Alice goal" not in other.text
+        prompt = rpc(
+            http,
+            b.access_token,
+            "prompts/get",
+            {"name": "plan_upgrades", "arguments": {"question": "Hi"}},
+        )
+        assert prompt.status_code == 200
+        extra = rpc(
+            http,
+            a.access_token,
+            "tools/call",
+            {"name": "save_goal", "arguments": {**args, "player_id": bob.id}},
+        )
+        assert "Unknown tool argument" in extra.text
+
+
+def test_limits_status_codes_and_capacity(env):
+    from msf_assistant.hosted_server import HostedLimits
+
+    app, store, provider, alice, a, bob, b = env
+    app.limits = HostedLimits(request_bytes=300, requests_per_minute=2)
+    with TestClient(app, base_url="https://msf.example") as http:
+        assert http.post("/register", content=b"x" * 301).status_code == 413
+        for _ in range(2):
+            assert rpc(http, b.access_token, "tools/list").status_code == 200
+        limited = rpc(http, b.access_token, "tools/list")
+        assert limited.status_code == 429
+        assert int(limited.headers["retry-after"]) > 0
+        app.sync.capacity.acquire()
+        app.sync.capacity.acquire()
+        try:
+            assert (
+                rpc(http, a.access_token, "tools/call", {"name": "refresh_data"}).status_code == 503
+            )
+        finally:
+            app.sync.capacity.release()
+            app.sync.capacity.release()
+        app.active = 4
+        assert rpc(http, a.access_token, "tools/list").status_code == 503
+        assert http.get("/health").status_code == 200
+        app.active = 0
+
+
+def test_revoke_wrong_resource_expiry_and_recreation(env):
+    import time
+
+    from msf_assistant.hosted_server import create_hosted_app
+
+    app, store, provider, alice, a, bob, b = env
+    rebuilt = create_hosted_app(store, provider, object(), Settings("test"), "https://msf.example")
+    with TestClient(rebuilt, base_url="https://msf.example") as http:
+        assert rpc(http, a.access_token, "tools/list").status_code == 200
+        with store.transaction() as db:
+            db.execute(
+                "UPDATE oauth_grants SET resource=? WHERE player=?",
+                ("https://foreign/mcp", alice.id),
+            )
+        assert rpc(http, a.access_token, "tools/list").status_code == 401
+        with store.transaction() as db:
+            db.execute(
+                "UPDATE oauth_grants SET expires=? WHERE player=?", (time.time() - 1, bob.id)
+            )
+        assert rpc(http, b.access_token, "tools/list").status_code == 401
+    player, c = issue(store, provider, "revoked", ["msf:read"])
+    asyncio.run(provider.revoke_player(player.id))
+    with TestClient(app, base_url="https://msf.example") as http:
+        assert rpc(http, c.access_token, "prompts/list").status_code == 401
+
+
+def test_real_loopback_sdk_two_clients_and_reconnect(env):
+    import socket
+    import threading
+    import time
+
+    import httpx2
+    import uvicorn
+    from mcp import ClientSession
+    from mcp.client.streamable_http import streamable_http_client
+
+    app, store, provider, alice, a, bob, b = env
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(app, log_level="error", lifespan="on"))
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 5
+    while not server.started and thread.is_alive() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert server.started
+
+    async def check():
+        async def connect(token, title):
+            async with (
+                httpx2.AsyncClient(
+                    headers={
+                        "Authorization": "Bearer " + token,
+                        "Mcp-Session-Id": "foreign-session",
+                        "Last-Event-ID": "foreign-request",
+                    }
+                ) as http,
+                streamable_http_client(f"http://127.0.0.1:{port}/mcp", http_client=http) as streams,
+                ClientSession(*streams) as session,
+            ):
+                await session.initialize()
+                tools = await session.list_tools()
+                assert any(tool.name == "get_advisor_context" for tool in tools.tools)
+                if title:
+                    result = await session.call_tool(
+                        "save_goal",
+                        dict(
+                            expected_revision=0,
+                            title=title,
+                            description="",
+                            status="selected",
+                            provenance="test",
+                        ),
+                    )
+                    assert not result.is_error
+                result = await session.call_tool("get_advisor_context")
+                assert ("Alice persistent" in str(result)) == bool(title)
+                await session.get_prompt("plan_upgrades", {"question": "test"})
+
+        await asyncio.gather(
+            connect(a.access_token, "Alice persistent"), connect(b.access_token, None)
+        )
+        async with (
+            httpx2.AsyncClient(headers={"Authorization": "Bearer " + a.access_token}) as http,
+            streamable_http_client(f"http://127.0.0.1:{port}/mcp", http_client=http) as streams,
+            ClientSession(*streams) as session,
+        ):
+            await session.initialize()
+            assert "Alice persistent" in str(await session.call_tool("get_advisor_context"))
+
+    try:
+        asyncio.run(check())
+    finally:
+        server.should_exit = True
+        thread.join(5)
+        sock.close()
+    assert not thread.is_alive()
+
+
+def test_simultaneous_context_writes_report_conflict(env):
+    from concurrent.futures import ThreadPoolExecutor
+
+    app, store, provider, alice, a, bob, b = env
+    with TestClient(app, base_url="https://msf.example") as http:
+
+        def save(title):
+            return rpc(
+                http,
+                a.access_token,
+                "tools/call",
+                {
+                    "name": "save_goal",
+                    "arguments": dict(
+                        expected_revision=0,
+                        title=title,
+                        description="",
+                        status="proposed",
+                        provenance="test",
+                    ),
+                },
+            ).json()
+
+        with ThreadPoolExecutor(2) as pool:
+            results = list(pool.map(save, ["one", "two"]))
+        assert sum(bool(result["result"].get("isError")) for result in results) == 1
+        assert "revision" in str(results).lower()
+
+
+def test_slow_request_body_times_out_and_releases_capacity(env):
+    import anyio
+
+    from msf_assistant.hosted_server import HostedLimits
+
+    app, *_ = env
+    app.limits = HostedLimits(body_timeout=0.01)
+
+    async def exercise():
+        sent = []
+
+        async def receive():
+            await anyio.sleep(1)
+            return {"type": "http.request", "body": b""}
+
+        async def send(message):
+            sent.append(message)
+
+        await app({"type": "http", "path": "/register", "method": "POST"}, receive, send)
+        assert sent[0]["status"] == 408
+        assert app.active == 0
+
+    asyncio.run(exercise())
+
+
+def test_slow_refresh_does_not_block_other_player(env, monkeypatch):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    from msf_assistant import hosted_sync
+    from msf_assistant.auth import TokenSet
+
+    app, store, provider, alice, a, bob, b = env
+    store.save_tokens(alice.id, TokenSet("secret"))
+    entered, release = threading.Event(), threading.Event()
+
+    def fetch(*args, **kwargs):
+        entered.set()
+        assert release.wait(timeout=5)
+        raise RuntimeError("DO-NOT-EXPOSE-secret")
+
+    monkeypatch.setattr(hosted_sync, "fetch_snapshot", fetch)
+    with TestClient(app, base_url="https://msf.example") as http, ThreadPoolExecutor(1) as pool:
+        job = pool.submit(rpc, http, a.access_token, "tools/call", {"name": "refresh_data"})
+        assert entered.wait(timeout=5)
+        try:
+            response = rpc(http, b.access_token, "tools/call", {"name": "get_advisor_context"})
+            assert response.status_code == 200
+            assert not job.done()
+        finally:
+            release.set()
+        assert "DO-NOT-EXPOSE" not in job.result(timeout=5).text
+
+
+def test_malformed_tool_name_is_protocol_error_not_crash(env):
+    app, store, provider, alice, a, bob, b = env
+    with TestClient(app, base_url="https://msf.example") as http:
+        response = rpc(http, a.access_token, "tools/call", {"name": ["invalid"]})
+        assert response.status_code == 200
+        assert response.json()["error"]["code"] == -32602
+        assert app.active == 0
+
+
+def test_rate_state_expires_and_remains_bounded(env, monkeypatch):
+    from msf_assistant import hosted_server
+
+    app, store, provider, alice, a, bob, b = env
+    app.limits = hosted_server.HostedLimits(rate_players=1)
+    now = [1000.0]
+    monkeypatch.setattr(hosted_server.time, "monotonic", lambda: now[0])
+    with TestClient(app, base_url="https://msf.example") as http:
+        assert rpc(http, a.access_token, "tools/list").status_code == 200
+        assert rpc(http, b.access_token, "tools/list").status_code == 503
+        now[0] += 61
+        assert rpc(http, b.access_token, "tools/list").status_code == 200
+        assert len(app.rates) == 1
+        assert http.get("/.well-known/oauth-protected-resource/mcp").status_code == 200
+        assert http.get("/.well-known/oauth-authorization-server").status_code == 200
+
+
+def test_initialization_retains_advisor_instructions(env):
+    from msf_assistant.advisor_instructions import ADVISOR_INSTRUCTIONS
+
+    app, store, provider, alice, a, bob, b = env
+    with TestClient(app, base_url="https://msf.example") as http:
+        response = rpc(
+            http,
+            a.access_token,
+            "initialize",
+            {
+                "protocolVersion": "2025-11-25",
+                "capabilities": {},
+                "clientInfo": {"name": "test", "version": "1"},
+            },
+        )
+        assert response.json()["result"].get("instructions") == ADVISOR_INSTRUCTIONS
+
+
+def test_snapshot_reads_and_context_survive_app_recreation(env):
+    from test_snapshot import write_snapshot
+
+    from msf_assistant.hosted_server import create_hosted_app
+
+    app, store, provider, alice, a, bob, b = env
+    write_snapshot(store.player_dir(alice.id), profile={"data": {"name": "Alice synthetic"}})
+    write_snapshot(store.player_dir(bob.id), profile={"data": {"name": "Bob synthetic"}})
+    with TestClient(app, base_url="https://msf.example") as http:
+        for token, expected, other in [
+            (a, "Alice synthetic", "Bob synthetic"),
+            (b, "Bob synthetic", "Alice synthetic"),
+        ]:
+            response = rpc(http, token.access_token, "tools/call", {"name": "get_player_profile"})
+            assert expected in response.text and other not in response.text
+        response = rpc(
+            http,
+            a.access_token,
+            "tools/call",
+            {
+                "name": "save_goal",
+                "arguments": dict(
+                    expected_revision=0,
+                    title="Durable",
+                    description="",
+                    status="selected",
+                    provenance="test",
+                ),
+            },
+        )
+        assert not response.json()["result"].get("isError")
+    rebuilt = create_hosted_app(store, provider, object(), Settings("test"), "https://msf.example")
+    with TestClient(rebuilt, base_url="https://msf.example") as http:
+        assert (
+            "Durable"
+            in rpc(http, a.access_token, "tools/call", {"name": "get_advisor_context"}).text
+        )
+        assert (
+            "Durable"
+            not in rpc(http, b.access_token, "tools/call", {"name": "get_advisor_context"}).text
+        )
+
+
+def test_auth_storage_failure_returns_secret_free_error(env, monkeypatch):
+    app, store, provider, alice, a, bob, b = env
+
+    async def broken(token):
+        raise RuntimeError("private-storage-secret")
+
+    monkeypatch.setattr(provider, "load_access_token", broken)
+    with TestClient(app, base_url="https://msf.example") as http:
+        response = rpc(http, a.access_token, "tools/list")
+        assert response.status_code == 503
+        assert "private-storage-secret" not in response.text
+        assert app.active == 0
+
+
+def test_response_size_cap_returns_safe_error(env):
+    from msf_assistant.hosted_server import HostedLimits
+
+    app, store, provider, alice, a, bob, b = env
+    app.limits = HostedLimits(response_bytes=100)
+    with TestClient(app, base_url="https://msf.example") as http:
+        response = rpc(http, a.access_token, "tools/list")
+        assert response.status_code == 503
+        assert len(response.content) < 100
+        assert app.active == 0

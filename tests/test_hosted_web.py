@@ -1,3 +1,4 @@
+import json
 import re
 from unittest.mock import Mock
 from urllib.parse import parse_qs, urlsplit
@@ -22,6 +23,11 @@ def setup(tmp_path):
     provider = HostedOAuthProvider(store, ORIGIN)
     identity = MSFIdentity(Settings(client_id="app", client_secret="secret"))
     identity.oauth.session = Mock()
+    for method in (identity.oauth.session.get, identity.oauth.session.post):
+        response = method.return_value
+        response.iter_content.side_effect = lambda chunk_size, r=response: [
+            json.dumps(r.json.return_value).encode()
+        ]
     identity.oauth.session.get.return_value.status_code = 200
     identity.oauth.session.post.return_value.json.return_value = {"access_token": "private-token"}
     identity.oauth.session.get.return_value.json.return_value = {"sub": "alice"}

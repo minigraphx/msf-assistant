@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import secrets
 from dataclasses import dataclass, field
 from typing import Any
@@ -46,8 +47,15 @@ class TokenSet:
 class MSFOAuth2:
     """Build authorization URLs and exchange or refresh tokens."""
 
-    def __init__(self, settings: Settings, session: requests.Session | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        session: requests.Session | None = None,
+        *,
+        max_response_bytes: int | None = None,
+    ) -> None:
         self.settings = settings
+        self.max_response_bytes = max_response_bytes
         self.session = session or requests.Session()
 
     def authorization_url(
@@ -111,9 +119,27 @@ class MSFOAuth2:
             auth=(quote_plus(self.settings.client_id), quote_plus(secret)),
             allow_redirects=False,
             timeout=self.settings.request_timeout,
+            **({"stream": True} if self.max_response_bytes is not None else {}),
         )
         response.raise_for_status()
-        payload = response.json()
+        payload = (
+            response.json()
+            if self.max_response_bytes is None
+            else bounded_response_json(response, self.max_response_bytes)
+        )
         if not isinstance(payload, dict):
             raise ValueError("OAuth response must be a JSON object")
         return TokenSet.from_payload(payload)
+
+
+def bounded_response_json(response: requests.Response, max_bytes: int) -> Any:
+    """Read decoded response bytes within a limit before JSON materialization."""
+    raw = bytearray()
+    try:
+        for chunk in response.iter_content(chunk_size=65536):
+            if len(raw) + len(chunk) > max_bytes:
+                raise ValueError("Upstream response is too large")
+            raw.extend(chunk)
+        return json.loads(raw)
+    finally:
+        response.close()

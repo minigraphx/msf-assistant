@@ -2,9 +2,10 @@
 
 import math
 
-from msf_assistant.auth import MSFOAuth2, TokenSet
+from msf_assistant.auth import MSFOAuth2, TokenSet, bounded_response_json
 from msf_assistant.config import DEFAULT_OAUTH_BASE_URL, Settings
 
+IDENTITY_RESPONSE_BYTES = 64 * 1024
 ISSUER = "https://hydra-public.prod.m3.scopelypv.com/"
 
 
@@ -14,7 +15,7 @@ class MSFIdentity:
             raise ValueError("The official MSF issuer is required")
         if not math.isfinite(settings.request_timeout) or settings.request_timeout <= 0:
             raise ValueError("A finite positive timeout is required")
-        self.oauth = MSFOAuth2(settings)
+        self.oauth = MSFOAuth2(settings, max_response_bytes=IDENTITY_RESPONSE_BYTES)
 
     def begin(self, state: str) -> str:
         return self.oauth.authorization_url(state=state)[0]
@@ -26,11 +27,12 @@ class MSFIdentity:
             headers={"Authorization": "Bearer " + tokens.access_token},
             timeout=self.oauth.settings.request_timeout,
             allow_redirects=False,
+            stream=True,
         )
         response.raise_for_status()
         if response.status_code != 200:
             raise ValueError("MSF userinfo response was not successful")
-        payload = response.json()
+        payload = bounded_response_json(response, IDENTITY_RESPONSE_BYTES)
         subject = payload.get("sub") if isinstance(payload, dict) else None
         if not isinstance(subject, str) or not subject.strip():
             raise ValueError("MSF identity could not be verified")

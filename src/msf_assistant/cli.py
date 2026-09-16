@@ -23,9 +23,13 @@ from msf_assistant.snapshot import SnapshotError, validate_snapshot
 from msf_assistant.token_store import KeychainTokenStore, TokenStoreError
 
 
-def write_snapshot(output: Path, payload: dict[str, Any]) -> None:
+def write_snapshot(
+    output: Path, payload: dict[str, Any], *, max_bytes: int | None = None
+) -> None:
     """Replace a snapshot atomically with an owner-only file; never store tokens."""
     serialized = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+    if max_bytes is not None and len(serialized.encode("utf-8")) > max_bytes:
+        raise ValueError("Snapshot is too large")
     output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     temporary: str | None = None
     try:
@@ -49,12 +53,16 @@ def write_snapshot(output: Path, payload: dict[str, Any]) -> None:
 
 
 def fetch_snapshot(
-    settings: Settings, tokens: TokenSet, output: Path, *, characters: bool = False
+    settings: Settings, tokens: TokenSet, output: Path, *, characters: bool = False,
+    max_bytes: int | None = None
 ) -> None:
     """Fetch all resources before replacing an existing snapshot."""
     payload: dict[str, Any] = {}
     with requests.Session() as session:
-        client = MSFAPIClient(settings, tokens.access_token, session=session)
+        client = MSFAPIClient(
+            settings, tokens.access_token, session=session,
+            **({"max_bytes": max_bytes} if max_bytes is not None else {}),
+        )
         for name, fetch in (
             ("profile", client.player_profile),
             ("roster", client.player_roster),
@@ -98,7 +106,7 @@ def fetch_snapshot(
             pass
         except (ValueError, OSError):
             pass
-    write_snapshot(output, payload)
+    write_snapshot(output, payload, **({"max_bytes": max_bytes} if max_bytes is not None else {}))
 
 
 def _refresh(settings: Settings, tokens: TokenSet, store: KeychainTokenStore) -> TokenSet:

@@ -255,8 +255,9 @@ def _validate_context(value: Any) -> JsonObject:
 class ContextStore:
     """Read and atomically mutate one fixed advisor-context file."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, max_bytes: int = _MAX_FILE_BYTES) -> None:
         self.path = Path(path)
+        self.max_bytes = max_bytes
 
     def read(self) -> JsonObject:
         """Return a detached validated context, or an empty context when absent."""
@@ -456,10 +457,10 @@ class ContextStore:
         try:
             with os.fdopen(descriptor, "rb") as stream:
                 metadata = os.fstat(stream.fileno())
-                if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > _MAX_FILE_BYTES:
+                if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > self.max_bytes:
                     raise ContextError("The advisor context is unreadable or too large")
-                raw = stream.read(_MAX_FILE_BYTES + 1)
-            if len(raw) > _MAX_FILE_BYTES:
+                raw = stream.read(self.max_bytes + 1)
+            if len(raw) > self.max_bytes:
                 raise ContextError("The advisor context is unreadable or too large")
             value = json.loads(raw, parse_constant=self._reject_constant)
             return _validate_context(value)
@@ -475,7 +476,7 @@ class ContextStore:
             ).encode("utf-8")
         except (TypeError, ValueError) as exc:
             raise ContextError("The advisor context contains invalid values") from exc
-        if len(serialized) > _MAX_FILE_BYTES:
+        if len(serialized) > self.max_bytes:
             raise ContextError("The advisor context is too large to save")
         temporary: str | None = None
         try:
