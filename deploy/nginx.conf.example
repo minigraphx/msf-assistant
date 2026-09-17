@@ -2,18 +2,26 @@
 # Never use $request or $request_uri: OAuth callback queries contain secrets.
 log_format msf_safe '$remote_addr [$time_local] "$request_method $uri $server_protocol" '
                     '$status $body_bytes_sent';
+# msf.andywhv.de resolves through the zone's wildcard A record to this host.
+# Issue its own certificate before enabling the 443 block, e.g.
+#   certbot certonly --webroot -w /var/www/letsencrypt -d msf.andywhv.de
 server {
     listen 80;
-    server_name msf.giwf.ch;
+    server_name msf.andywhv.de;
     access_log /var/log/nginx/msf-access.log msf_safe;
     error_log /dev/null crit;
-    return 308 https://msf.giwf.ch$uri;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+    }
+    location / {
+        return 308 https://msf.andywhv.de$uri;
+    }
 }
 server {
     listen 443 ssl;
-    server_name msf.giwf.ch;
-    ssl_certificate /etc/letsencrypt/live/giwf.ch/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/giwf.ch/privkey.pem;
+    server_name msf.andywhv.de;
+    ssl_certificate /etc/letsencrypt/live/msf.andywhv.de/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/msf.andywhv.de/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     access_log /var/log/nginx/msf-access.log msf_safe;
     # nginx error context can include full query strings, even at crit severity.

@@ -3,7 +3,7 @@
 This bundle is ready for local verification, not evidence of a public deployment.
 Public release requires a maintained host OS, approval/configuration of the MSF
 application for multiple players and the exact redirect
-`https://msf.giwf.ch/oauth/callback`, and real ChatGPT/Claude acceptance tests.
+`https://msf.andywhv.de/oauth/callback`, and real ChatGPT/Claude acceptance tests.
 The existing macOS local service and Keychain remain independent.
 
 ## Runtime and host prerequisites
@@ -93,9 +93,13 @@ limitation. Monitor restarts/OOM status and free host RAM; do not enable public
 traffic solely because the health check passes. A production load test must also
 leave headroom for nginx, existing applications and the OS.
 
-Use `nginx.conf.example` as the dedicated vhost. Its existing certificate paths
-cover `msf.giwf.ch` according to preflight; validate the current certificate at
-deployment. Run `nginx -t` before reloading. No TLS bypass is allowed. Access logs
+Use `nginx.conf.example` as the dedicated vhost. The public name is
+`msf.andywhv.de`; the `andywhv.de` Route53 zone already resolves it through its
+wildcard `A` record to this host, so no DNS change is needed. The host's existing
+certificates do not cover this name: issue a dedicated Let's Encrypt certificate
+(the port-80 block serves `/.well-known/acme-challenge/` from
+`/var/www/letsencrypt` before redirecting) and confirm its renewal hook reloads
+nginx. Run `nginx -t` before reloading. No TLS bypass is allowed. Access logs
 use `$uri`, never query strings or full requests. This vhost's nginx error log is
 disabled because error context can retain OAuth callback queries. Use sanitized
 access status, health and container status for diagnosis. Uvicorn access logging
