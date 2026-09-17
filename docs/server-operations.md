@@ -54,7 +54,12 @@ Provision the MSF client secret as a separate 0600 file through the operator's
 secure secret channel. Do not paste it into shell history.
 
 Copy `hosted.env.example` to the configuration path and set the public origin,
-registered app ID and immutable image digest (or a unique commit release tag).
+registered app ID, immutable image digest (or a unique commit release tag) and
+the operator identity (`MSF_OPERATOR_NAME`, `MSF_OPERATOR_ADDRESS`,
+`MSF_OPERATOR_EMAIL`). The service refuses to start without the operator
+identity; it is rendered as responsible party on `/privacy.html` and as provider
+on `/terms.html`, so a public instance is never anonymous. Both pages are drafts
+written to match the implemented data flows; review them before public use.
 The secret-file paths are references. Plaintext `MSF_CLIENT_SECRET` is not read
 by hosted commands. Hosted commands never load local `.env` or Keychain data.
 For host CLI use, `MSF_HOSTED_MOUNT=/var`; Compose overrides the mount to `/data`

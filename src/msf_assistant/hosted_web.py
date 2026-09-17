@@ -16,6 +16,10 @@ from starlette.datastructures import FormData
 from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.routing import Route
 
+from msf_assistant.hosted_pages import Operator, privacy_body, terms_body
+
+__all__ = ["Operator", "account_routes", "page"]
+
 COOKIE = "__Host-msf_session"
 SESSION_TTL = 8 * 3600
 LOGIN_TTL = 600
@@ -44,7 +48,8 @@ def page(body, status=200, *, form_origins=""):
         '<!doctype html><html lang="de"><meta charset="utf-8">'
         "<title>MSF Assistant</title><body>"
         + body
-        + '<p><a href="/">Hilfe</a> · <a href="/privacy.html">Datenschutz</a></p></body></html>',
+        + '<p><a href="/">Hilfe</a> · <a href="/privacy.html">Datenschutz</a> · '
+        '<a href="/terms.html">Nutzungsbedingungen</a></p></body></html>',
         status_code=status,
         headers={
             "Cache-Control": "no-store",
@@ -144,7 +149,7 @@ class BrowserSessions:
         return state
 
 
-def account_routes(store, provider, identity, public_url):
+def account_routes(store, provider, identity, public_url, *, operator=None):
     public_url = public_url.rstrip("/")
     if public_url != provider.public_url:
         raise ValueError("Public origins must match")
@@ -215,19 +220,10 @@ def account_routes(store, provider, identity, public_url):
         )
 
     async def privacy(request):
-        return page(
-            "<h1>Datenschutz</h1><p>Der gehostete Dienst verarbeitet deine eigenen "
-            "MSF-Spieldaten und den von dir gespeicherten Spielkontext. Er speichert "
-            "deine bestätigte MSF-Kennung, verschlüsselte MSF-Zugangsdaten, "
-            "Browsersitzungen und Berechtigungen verbundener Clients. Freigegebene "
-            "Daten werden dem von dir autorisierten Assistenten bereitgestellt.</p>"
-            "<p>Du kannst Verbindungen widerrufen oder dein Konto löschen. Die Löschung "
-            "deaktiviert den Zugang und entfernt aktive Zugangsdaten und Spielerdateien; "
-            "Sicherheits- und Widerrufseinträge können verbleiben. Bereits vorhandene "
-            "Sicherungskopien laufen zeitversetzt gemäß der Backup-Aufbewahrung ab. "
-            "Daten, die ein verbundener Client bereits erhalten hat, werden durch den "
-            "Widerruf hier nicht aus diesem Client gelöscht.</p>"
-        )
+        return page(privacy_body(operator, public_url))
+
+    async def terms(request):
+        return page(terms_body(operator, public_url))
 
     async def login(request):
         if request.method == "POST":
@@ -378,6 +374,7 @@ def account_routes(store, provider, identity, public_url):
         for path, handler, methods in [
             ("/", home, ["GET"]),
             ("/privacy.html", privacy, ["GET"]),
+            ("/terms.html", terms, ["GET"]),
             ("/login", login, ["GET", "POST"]),
             ("/oauth/callback", callback, ["GET"]),
             ("/consent", consent, ["GET", "POST"]),

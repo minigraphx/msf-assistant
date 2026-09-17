@@ -12,7 +12,7 @@ from msf_assistant.config import Settings
 from msf_assistant.hosted_identity import MSFIdentity
 from msf_assistant.hosted_oauth import HostedOAuthProvider
 from msf_assistant.hosted_store import HostedStore
-from msf_assistant.hosted_web import account_routes
+from msf_assistant.hosted_web import Operator, account_routes
 
 ORIGIN = "https://assistant.example"
 
@@ -31,7 +31,10 @@ def setup(tmp_path):
     identity.oauth.session.get.return_value.status_code = 200
     identity.oauth.session.post.return_value.json.return_value = {"access_token": "private-token"}
     identity.oauth.session.get.return_value.json.return_value = {"sub": "alice"}
-    app = Starlette(routes=account_routes(store, provider, identity, ORIGIN))
+    operator = Operator(
+        name="Max <Muster>", address="Musterweg 1, 8000 Zürich", email="max@example.invalid"
+    )
+    app = Starlette(routes=account_routes(store, provider, identity, ORIGIN, operator=operator))
     with TestClient(app, base_url=ORIGIN, follow_redirects=False) as browser:
         yield store, provider, identity, browser
 
@@ -369,3 +372,32 @@ def test_home_explains_configured_connector_url_and_clients(setup):
     # Claude's dialog defaults to published identity (CIMD), which is unsupported.
     assert "Automatisch registrieren" in text
     assert 'href="/privacy.html"' in text
+
+
+def test_privacy_and_terms_name_the_operator_and_are_linked(setup):
+    _, _, _, browser = setup
+    privacy = browser.get("/privacy.html")
+    assert privacy.status_code == 200
+    for expected in ("Verantwortlich", "Max &lt;Muster&gt;", "Musterweg 1, 8000 Zürich",
+                     "max@example.invalid", "Scopely", "ChatGPT", "Claude", "Auskunft",
+                     "__Host-msf_session"):
+        assert expected in privacy.text, expected
+    assert "<Muster>" not in privacy.text
+    terms = browser.get("/terms.html")
+    assert terms.status_code == 200
+    for expected in ("Nutzungsbedingungen", "Max &lt;Muster&gt;", "Scopely", "eigenes MSF-Konto",
+                     "ohne Gewähr", "Schweizer Recht"):
+        assert expected in terms.text, expected
+    for path in ("/", "/privacy.html", "/terms.html"):
+        text = browser.get(path).text
+        assert 'href="/privacy.html"' in text and 'href="/terms.html"' in text, path
+
+
+def test_pages_without_operator_say_so_instead_of_inventing_details(tmp_path):
+    store = HostedStore(tmp_path / "store2", Fernet.generate_key())
+    provider = HostedOAuthProvider(store, ORIGIN)
+    identity = MSFIdentity(Settings(client_id="app", client_secret="secret"))
+    app = Starlette(routes=account_routes(store, provider, identity, ORIGIN))
+    with TestClient(app, base_url=ORIGIN) as browser:
+        text = browser.get("/privacy.html").text
+        assert "nicht konfiguriert" in text

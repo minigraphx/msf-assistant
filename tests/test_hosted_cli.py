@@ -21,6 +21,9 @@ def config_env(tmp_path):
         "MSF_CLIENT_SECRET_FILE": str(secret),
         "MSF_CLIENT_ID": "synthetic",
         "MSF_PUBLIC_URL": "https://msf.example",
+        "MSF_OPERATOR_NAME": "Synthetic Operator",
+        "MSF_OPERATOR_ADDRESS": "Somewhere 1, 8000 Zürich",
+        "MSF_OPERATOR_EMAIL": "operator@example.invalid",
     }
 
 
@@ -209,4 +212,25 @@ def test_mount_cannot_be_root_or_escaped_and_keys_stay_outside_state(tmp_path, m
     env["MSF_HOSTED_DATA"] = str(tmp_path)
     env["MSF_HOSTED_MOUNT"] = str(tmp_path.parent)
     with pytest.raises(ValueError, match="outside"):
+        HostedConfig.from_env(env)
+
+
+def test_operator_identity_is_required_for_public_pages(tmp_path, monkeypatch):
+    from msf_assistant.hosted_cli import HostedConfig
+
+    env = config_env(tmp_path)
+    monkeypatch.setattr(os.path, "ismount", lambda p: True)
+    config = HostedConfig.from_env(env)
+    assert config.operator.name == "Synthetic Operator"
+    assert config.operator.email == "operator@example.invalid"
+    for key, bad in (
+        ("MSF_OPERATOR_NAME", ""),
+        ("MSF_OPERATOR_ADDRESS", "   "),
+        ("MSF_OPERATOR_EMAIL", "not-an-address"),
+    ):
+        broken = dict(env, **{key: bad})
+        with pytest.raises(ValueError, match="operator"):
+            HostedConfig.from_env(broken)
+    del env["MSF_OPERATOR_NAME"]
+    with pytest.raises(ValueError, match="operator"):
         HostedConfig.from_env(env)

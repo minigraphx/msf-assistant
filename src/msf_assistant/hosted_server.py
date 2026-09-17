@@ -218,7 +218,9 @@ class PublicGuard:
                 self.sync.capacity.release()
 
 
-def create_hosted_app(store, provider, identity, settings, public_url, *, limits=None):
+def create_hosted_app(
+    store, provider, identity, settings, public_url, *, limits=None, operator=None
+):
     limits = limits or HostedLimits()
     public_url = public_url.rstrip("/")
     if public_url != provider.public_url:
@@ -258,7 +260,7 @@ def create_hosted_app(store, provider, identity, settings, public_url, *, limits
     # favour of the provider's document that advertises every grantable scope.
     app.routes[:] = [r for r in app.routes if getattr(r, "path", None) != PROTECTED_RESOURCE_PATH]
     app.routes.extend(provider.auth_routes())
-    app.routes.extend(account_routes(store, provider, identity, public_url))
+    app.routes.extend(account_routes(store, provider, identity, public_url, operator=operator))
     app.routes.append(Route("/health", health))
     guarded = PublicGuard(app, provider, sync, limits)
     return guarded

@@ -45,6 +45,10 @@ MSF_IMAGE=$IMAGE
 MSF_PUBLIC_URL=$PUBLIC_URL
 # Placeholder until the MSF app is registered with callback $PUBLIC_URL/oauth/callback
 MSF_CLIENT_ID=$PLACEHOLDER
+# Shown on /privacy.html and /terms.html; replace before public use.
+MSF_OPERATOR_NAME=REPLACE_WITH_OPERATOR_NAME
+MSF_OPERATOR_ADDRESS=REPLACE_WITH_POSTAL_ADDRESS
+MSF_OPERATOR_EMAIL=REPLACE_WITH_CONTACT@example.invalid
 # Container overrides these paths; CLI on the host uses these values.
 MSF_HOSTED_DATA=/var/lib/msf-assistant/state
 MSF_HOSTED_MOUNT=/var
@@ -56,6 +60,14 @@ ENV
 else
   echo "   keeping existing /etc/msf-assistant/hosted.env"
   sed -i "s|^MSF_IMAGE=.*|MSF_IMAGE=$IMAGE|" /etc/msf-assistant/hosted.env
+  for pair in MSF_OPERATOR_NAME=REPLACE_WITH_OPERATOR_NAME \
+              MSF_OPERATOR_ADDRESS=REPLACE_WITH_POSTAL_ADDRESS \
+              MSF_OPERATOR_EMAIL=REPLACE_WITH_CONTACT@example.invalid; do
+    grep -q "^${pair%%=*}=" /etc/msf-assistant/hosted.env || {
+      printf '%s\n' "$pair" >> /etc/msf-assistant/hosted.env
+      echo "   added placeholder ${pair%%=*}; edit it before public use"
+    }
+  done
 fi
 chown root:root /etc/msf-assistant/hosted.env; chmod 0600 /etc/msf-assistant/hosted.env
 

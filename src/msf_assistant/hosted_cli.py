@@ -16,6 +16,7 @@ from cryptography.fernet import Fernet
 
 from msf_assistant.config import DEFAULT_OAUTH_BASE_URL, Settings
 from msf_assistant.hosted_backup import MARKER, backup, restore, resume
+from msf_assistant.hosted_pages import Operator
 from msf_assistant.hosted_store import HostedStore
 
 
@@ -88,6 +89,7 @@ class HostedConfig:
     public_url: str
     key: bytes = field(repr=False)
     settings: Settings = field(repr=False)
+    operator: Operator
     active_requests: int = 2
 
     @classmethod
@@ -125,7 +127,7 @@ class HostedConfig:
         active_requests = int(env.get("MSF_HOSTED_ACTIVE_REQUESTS", "2"))
         if not 1 <= active_requests <= 4:
             raise ValueError("Active requests must be between 1 and 4")
-        return cls(root, public, key, settings, active_requests)
+        return cls(root, public, key, settings, Operator.from_env(env), active_requests)
 
 
 def serve(config, *, host="127.0.0.1", port=8000):
@@ -146,6 +148,7 @@ def serve(config, *, host="127.0.0.1", port=8000):
         config.settings,
         config.public_url,
         limits=HostedLimits(active_requests=config.active_requests),
+        operator=config.operator,
     )
     uvicorn.run(
         app,
