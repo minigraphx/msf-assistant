@@ -74,6 +74,15 @@ included. The official Python 3.12.14 image is pinned by digest and every runtim
 package is pinned with hashes. MCP remains 2.2.0 for its tested SDK adapters.
 No package resolution or build happens at server startup.
 
+`deploy/install-host.sh <image-tag> [--nginx]` performs the host layout above
+idempotently as root: service identity 10001, private directories, `hosted.env`
+(only if absent; otherwise only `MSF_IMAGE` is updated), a placeholder client
+secret, key generation inside the image, the systemd unit, a health wait and,
+with `--nginx`, the vhost behind `nginx -t`. It never prints secrets and never
+overwrites an existing key, secret or env file. Replace the placeholder
+`MSF_CLIENT_ID` and secret file after MSF app registration, then
+`systemctl restart msf-assistant.service`.
+
 Install the reviewed systemd unit, run `systemctl daemon-reload`, and enable/start
 `msf-assistant.service` after validating prerequisites. Compose publishes only
 `127.0.0.1:8000`; Uvicorn binds the container interface explicitly. `/health`
