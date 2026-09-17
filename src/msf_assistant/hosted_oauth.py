@@ -597,6 +597,10 @@ class HostedOAuthProvider:
                 route.app = RequestBodyLimitMiddleware(
                     _SDKFormCompatibility(route.app, resource), DEFAULT_MAX_REQUEST_BODY_SIZE
                 )
+        # Pass plain strings: the metadata model keeps an empty path only when it
+        # validates from a string, so the issuer identifier stays slash-free.
         return routes + create_protected_resource_routes(
-            AnyHttpUrl(self.resource), [issuer], scopes_supported=SCOPES
+            self.resource,  # type: ignore[arg-type]
+            [self.public_url],  # type: ignore[list-item]
+            scopes_supported=SCOPES,
         )

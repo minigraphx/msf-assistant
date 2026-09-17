@@ -376,6 +376,9 @@ def test_composed_app_advertises_every_scope_to_real_clients(env):
         assert prm["resource"] == "https://msf.example/mcp"
         served = http.get("/.well-known/oauth-authorization-server").json()
         assert served["scopes_supported"] == SCOPES
+        # RFC 9728 entries are issuer identifiers; they must equal the issuer
+        # byte for byte (no trailing slash) for strict clients.
+        assert prm["authorization_servers"] == [served["issuer"]] == ["https://msf.example"]
         assert [
             r.path for r in app.app.routes if r.path == "/.well-known/oauth-protected-resource/mcp"
         ] == ["/.well-known/oauth-protected-resource/mcp"]
