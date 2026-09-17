@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator, Mapping
 from typing import Any
 
 import requests
 
 from msf_assistant.config import Settings
+from msf_assistant.hosted_transport import bounded_request_options
 
 JsonObject = dict[str, Any]
 
@@ -20,11 +22,13 @@ class MSFAPIClient:
     """Small synchronous client for personal and static MSF data."""
 
     def __init__(
-        self, settings: Settings, access_token: str, session: requests.Session | None = None
+        self, settings: Settings, access_token: str, session: requests.Session | None = None,
+        *, max_bytes: int | None = None
     ) -> None:
         if not access_token:
             raise ValueError("access_token must not be empty")
         self.settings = settings
+        self.remaining_bytes = max_bytes
         self.session = session or requests.Session()
         self.session.headers.update(
             {
@@ -41,11 +45,24 @@ class MSFAPIClient:
             f"{self.settings.api_base_url}/{path.lstrip('/')}",
             params=params,
             timeout=self.settings.request_timeout,
+            **(bounded_request_options() if self.remaining_bytes is not None else {}),
         )
         response.raise_for_status()
         try:
-            payload = response.json()
-        except requests.exceptions.JSONDecodeError as exc:
+            if self.remaining_bytes is None:
+                payload = response.json()
+            else:
+                raw = bytearray()
+                try:
+                    for chunk in response.iter_content(chunk_size=65536):
+                        if len(chunk) > self.remaining_bytes:
+                            raise MSFAPIError("MSF response is too large")
+                        self.remaining_bytes -= len(chunk)
+                        raw.extend(chunk)
+                    payload = json.loads(raw)
+                finally:
+                    response.close()
+        except (ValueError, UnicodeError) as exc:
             raise MSFAPIError("MSF API returned invalid JSON") from exc
         if not isinstance(payload, dict):
             raise MSFAPIError("MSF API response must be a JSON object")

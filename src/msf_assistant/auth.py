@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import secrets
 from dataclasses import dataclass, field
 from typing import Any
@@ -10,6 +11,7 @@ from urllib.parse import parse_qs, quote_plus, urlencode, urlparse
 import requests
 
 from msf_assistant.config import Settings
+from msf_assistant.hosted_transport import bounded_request_options
 
 DEFAULT_SCOPES = ("openid", "offline", "m3p.f.pr.pro", "m3p.f.pr.ros", "m3p.f.pr.inv")
 
@@ -46,8 +48,15 @@ class TokenSet:
 class MSFOAuth2:
     """Build authorization URLs and exchange or refresh tokens."""
 
-    def __init__(self, settings: Settings, session: requests.Session | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        session: requests.Session | None = None,
+        *,
+        max_response_bytes: int | None = None,
+    ) -> None:
         self.settings = settings
+        self.max_response_bytes = max_response_bytes
         self.session = session or requests.Session()
 
     def authorization_url(
@@ -109,11 +118,32 @@ class MSFOAuth2:
             data=data,
             # OAuth Basic credentials are form-encoded before Base64 encoding.
             auth=(quote_plus(self.settings.client_id), quote_plus(secret)),
-            allow_redirects=False,
             timeout=self.settings.request_timeout,
+            **(
+                bounded_request_options()
+                if self.max_response_bytes is not None
+                else {"allow_redirects": False}
+            ),
         )
         response.raise_for_status()
-        payload = response.json()
+        payload = (
+            response.json()
+            if self.max_response_bytes is None
+            else bounded_response_json(response, self.max_response_bytes)
+        )
         if not isinstance(payload, dict):
             raise ValueError("OAuth response must be a JSON object")
         return TokenSet.from_payload(payload)
+
+
+def bounded_response_json(response: requests.Response, max_bytes: int) -> Any:
+    """Read decoded response bytes within a limit before JSON materialization."""
+    raw = bytearray()
+    try:
+        for chunk in response.iter_content(chunk_size=65536):
+            if len(raw) + len(chunk) > max_bytes:
+                raise ValueError("Upstream response is too large")
+            raw.extend(chunk)
+        return json.loads(raw)
+    finally:
+        response.close()

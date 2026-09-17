@@ -1,0 +1,9 @@
+*
+!src
+!src/**
+!deploy
+!deploy/requirements-hosted.txt
+!Dockerfile
+
+**/__pycache__
+**/*.pyc

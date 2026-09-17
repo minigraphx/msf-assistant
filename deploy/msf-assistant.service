@@ -1,0 +1,22 @@
+[Unit]
+Description=MSF Assistant hosted service (one container)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+RequiresMountsFor=/var/lib/msf-assistant
+ConditionPathIsMountPoint=/var
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=30
+WorkingDirectory=/opt/msf-assistant/deploy
+ExecStartPre=/usr/bin/mountpoint -q /var
+ExecStartPre=/usr/bin/docker compose version
+ExecStart=/usr/bin/docker compose --env-file /etc/msf-assistant/hosted.env up --no-build --abort-on-container-exit --exit-code-from assistant
+ExecStop=/usr/bin/docker compose --env-file /etc/msf-assistant/hosted.env down
+TimeoutStartSec=120
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target

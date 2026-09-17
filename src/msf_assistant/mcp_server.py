@@ -83,10 +83,18 @@ def create_server(
     context = ContextStore(context_path or snapshot.parent / "msf-advisor-context.json")
     server = AdvisorServer(
         "MSF Assistant",
-        version="0.3.0",
+        version="0.4.0",
         instructions=ADVISOR_INSTRUCTIONS,
         log_level="WARNING",
     )
+    return register_tools(server, reader, context, refresh=refresh, read_only=read_only)
+
+
+def register_tools(
+    server: AdvisorServer, reader: Any, context: Any, *,
+    refresh: Callable[[], None] | None = None, read_only: bool = False,
+) -> MCPServer:
+    """Bind the unchanged tool definitions to local or request-scoped backends."""
     read = ToolAnnotations(
         read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False
     )

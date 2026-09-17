@@ -23,9 +23,13 @@ from msf_assistant.snapshot import SnapshotError, validate_snapshot
 from msf_assistant.token_store import KeychainTokenStore, TokenStoreError
 
 
-def write_snapshot(output: Path, payload: dict[str, Any]) -> None:
+def write_snapshot(
+    output: Path, payload: dict[str, Any], *, max_bytes: int | None = None
+) -> None:
     """Replace a snapshot atomically with an owner-only file; never store tokens."""
     serialized = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+    if max_bytes is not None and len(serialized.encode("utf-8")) > max_bytes:
+        raise ValueError("Snapshot is too large")
     output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     temporary: str | None = None
     try:
@@ -49,12 +53,16 @@ def write_snapshot(output: Path, payload: dict[str, Any]) -> None:
 
 
 def fetch_snapshot(
-    settings: Settings, tokens: TokenSet, output: Path, *, characters: bool = False
+    settings: Settings, tokens: TokenSet, output: Path, *, characters: bool = False,
+    max_bytes: int | None = None
 ) -> None:
     """Fetch all resources before replacing an existing snapshot."""
     payload: dict[str, Any] = {}
     with requests.Session() as session:
-        client = MSFAPIClient(settings, tokens.access_token, session=session)
+        client = MSFAPIClient(
+            settings, tokens.access_token, session=session,
+            **({"max_bytes": max_bytes} if max_bytes is not None else {}),
+        )
         for name, fetch in (
             ("profile", client.player_profile),
             ("roster", client.player_roster),
@@ -98,7 +106,7 @@ def fetch_snapshot(
             pass
         except (ValueError, OSError):
             pass
-    write_snapshot(output, payload)
+    write_snapshot(output, payload, **({"max_bytes": max_bytes} if max_bytes is not None else {}))
 
 
 def _refresh(settings: Settings, tokens: TokenSet, store: KeychainTokenStore) -> TokenSet:
@@ -121,6 +129,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Lokaler MSF-Login und privater Roster-Abruf")
     parser.add_argument("--env-file", default=".env", help="Lokale Konfigurationsdatei")
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("hosted", help="Hosted service, backup and recovery commands")
     login = commands.add_parser("login", help="MSF-Anmeldung im Browser und erster Datenabruf")
     login.add_argument("--no-browser", action="store_true", help="Startseite selbst öffnen")
     login.add_argument(
@@ -235,6 +244,17 @@ def sync_saved(env_file: Path, output: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "hosted":
+        try:
+            from msf_assistant.hosted_cli import main as hosted_main
+        except ImportError:
+            print(
+                "Hosted-Paket fehlt. Mit pip install -e '.[hosted]' installieren.",
+                file=sys.stderr,
+            )
+            return 1
+        return hosted_main(argv[1:])
     args = _parser().parse_args(argv)
     try:
         if args.command in ("login", "sync", "logout"):

@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: python -m pip install '.[dev,local,mcp]' build
+      - run: python -m pip install '.[dev,local,mcp,hosted]' build
       - run: python -m pytest
       - run: python -m ruff check .
       - run: python -m build --outdir work/dist

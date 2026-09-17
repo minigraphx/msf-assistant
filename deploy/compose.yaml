@@ -1,0 +1,45 @@
+# Requires Docker Compose plugin v2.20+; legacy docker-compose 1.25 is unsupported.
+name: msf-assistant
+services:
+  assistant:
+    image: ${MSF_IMAGE:?Set MSF_IMAGE to the tested immutable image digest or unique release tag}
+    platform: linux/amd64
+    user: "10001:10001"
+    read_only: true
+    init: true
+    restart: "no"  # systemd owns restarts, so every start rechecks /var
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file: /etc/msf-assistant/hosted.env
+    environment:
+      MSF_HOSTED_DATA: /data/state
+      MSF_HOSTED_MOUNT: /data
+      MSF_HOSTED_KEY_FILE: /run/secrets/encryption.key
+      MSF_CLIENT_SECRET_FILE: /run/secrets/msf-client-secret
+      MSF_HOSTED_ACTIVE_REQUESTS: "2"
+    volumes:
+      - type: bind
+        source: /var/lib/msf-assistant
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /etc/msf-assistant/secrets
+        target: /run/secrets
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 384m
+    memswap_limit: 384m
+    cpus: 1.0
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+    stop_grace_period: 40s
