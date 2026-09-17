@@ -84,6 +84,7 @@ def test_auth_isolation_scopes_and_prompt(env):
             {"name": "plan_upgrades", "arguments": {"question": "Hi"}},
         )
         assert prompt.status_code == 200
+        # Bob has no snapshot yet: the guide must not depend on player data.
         guide = rpc(http, b.access_token, "tools/call", {"name": "get_guide"})
         assert guide.json()["result"]["structuredContent"]["workflow"]
         task = rpc(

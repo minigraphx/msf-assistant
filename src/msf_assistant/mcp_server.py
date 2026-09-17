@@ -32,6 +32,9 @@ Summary = Annotated[str, Field(min_length=1, max_length=10_000)]
 Timestamp = Annotated[str, Field(min_length=1, max_length=64)]
 ExpectedRevision = Annotated[int, Field(ge=0, strict=True)]
 FactValue = str | int | float | bool | None
+PLAN_UPGRADES_DESCRIPTION = (
+    "Plan roster-based upgrades with saved goals and research in the connected host."
+)
 
 
 class AdvisorServer(MCPServer):
@@ -166,7 +169,7 @@ def register_tools(
 
     @server.tool(annotations=read)
     def get_status() -> dict[str, Any]:
-        """Check data availability, row counts and age first; see get_guide for the workflow."""
+        """Check data availability and age (never refreshes); see get_guide for the workflow."""
         return safe_call(reader.status)
 
     @server.tool(annotations=read)
@@ -317,16 +320,14 @@ def guide() -> dict[str, Any]:
 
 
 def guide_text() -> str:
+    """Plain-text form of the guide for the guide://advisor resource."""
     steps = "\n".join(f"{n}. {step}" for n, step in enumerate(GUIDE_WORKFLOW, 1))
     return f"Advisor workflow\n\n{steps}\n\n{ADVISOR_INSTRUCTIONS}"
 
 
-PLAN_UPGRADES_DESCRIPTION = (
-    "Plan roster-based upgrades with saved goals and research in the connected host."
-)
-
 
 def render_prompt(question: str, focus: str = "") -> str:
+    """Instructions, optional task focus and the user's question as one prompt."""
     parts = [ADVISOR_INSTRUCTIONS]
     if focus:
         parts.append(focus)
@@ -351,6 +352,8 @@ def register_prompts(server: AdvisorServer) -> None:
 
 
 def task_prompt(task: TaskPrompt) -> Callable[[str], str]:
+    """Build the prompt function for one task (a factory avoids late binding)."""
+
     def prompt(question: str = "") -> str:
         return render_prompt(question, task.focus)
 

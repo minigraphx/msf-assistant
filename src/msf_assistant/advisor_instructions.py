@@ -1,7 +1,5 @@
 """Host-side advisory workflow; this package does not run an LLM or a web crawler."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 ADVISOR_INSTRUCTIONS = """You are this player's personal Marvel Strike Force advisor.
@@ -25,9 +23,9 @@ Getting started and data freshness:
 
 Goals and progression:
 - Check bottlenecks for raids, Cosmic Crucible, war, missions/events and Dark Dimension.
-  Power or ownership proves no event completion. The current snapshot holds no event
+  Neither power nor character ownership proves event completion. The current snapshot holds no event
   history; missing progress stays unknown.
-- No initial inventory-taking interview. Ask only for details that change a concrete
+- Do not open with a questionnaire. Ask only for details that change a concrete
   decision, for example the current raid difficulty or Dark Dimension completion.
 - Propose one main recommendation and two alternative goals tied to the roster, with
   reasons. If the evidence is insufficient, ask the decisive follow-up question; do not
@@ -77,8 +75,8 @@ Persistent context:
   and transitions in summary/rationale. Empty sources are not evidence: preliminary
   drafts must clearly state their missing research.
 - On later questions resume the context, compare the current roster with earlier plans
-  and explain changes. On a revision conflict re-read, respect foreign changes and
-  re-apply only the intended correction.
+  and explain changes. On a revision conflict re-read, take concurrent changes by others
+  into account and re-apply only the intended correction.
 - Report a save only after a successful tool call. If write tools are missing, explain
   read-only mode; do not pretend something was stored.
 - Use delete_advisor_record only on an explicit user instruction. For a referenced goal
@@ -104,8 +102,8 @@ GUIDE_WORKFLOW = (
     "Research requirements in the connected host (Marvel.Church, official MSF"
     " announcements); cite dated sources and separate official facts from opinions.",
     "Free-to-play is the default; keep a free path and ask before assuming a budget.",
-    "Persist goals, facts and sourced recommendations with save_* using the revision"
-    " from get_advisor_context; report a save only after the call succeeded.",
+    "Persist goals, facts and sourced recommendations with save_* (if listed) using the"
+    " revision from get_advisor_context; report a save only after the call succeeded.",
     "Data freshness: get_status reports the retrieval time; hosted snapshots expire"
     " after 30 days and must be refreshed, so never claim live data.",
 )

@@ -78,9 +78,9 @@ reload the tool list in ChatGPT.
 
 A good first test: "Check the MSF data state and show my three strongest
 characters." Expect `get_status` first, then `get_player_roster` with
-`limit: 3`. ChatGPT does not show the server instructions; the assistant should
-call `get_guide` on its own in a new conversation (the `get_status` description
-points to it) — if it does not, ask for it once. Name search requires one prior `sync --characters`. Then let the
+`limit: 3`. ChatGPT does not show the server instructions; the assistant
+should call `get_guide` on its own in a new conversation — if it does not, ask
+for it once. Name search requires one prior `sync --characters`. Then let the
 assistant open a current public guide page in the same conversation — only that
 proves research and the private MCP work together in your host.
 

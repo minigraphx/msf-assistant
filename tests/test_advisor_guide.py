@@ -79,3 +79,11 @@ async def test_guide_resource_lists_the_workflow(tmp_path):
         text = content.contents[0].text
         assert "get_status" in text
         assert ADVISOR_INSTRUCTIONS in text
+
+
+def test_guide_states_the_hosted_snapshot_ttl():
+    from msf_assistant.advisor_instructions import GUIDE_WORKFLOW
+    from msf_assistant.hosted_server import SNAPSHOT_TTL_SECONDS
+
+    assert f"{SNAPSHOT_TTL_SECONDS // 86400} days" in " ".join(GUIDE_WORKFLOW)
+    assert "(if listed)" in " ".join(step for step in GUIDE_WORKFLOW if "save_" in step)
