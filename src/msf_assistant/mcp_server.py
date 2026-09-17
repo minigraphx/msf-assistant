@@ -14,7 +14,12 @@ from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from msf_assistant.advisor_context import ContextError, ContextStore
-from msf_assistant.advisor_instructions import ADVISOR_INSTRUCTIONS
+from msf_assistant.advisor_instructions import (
+    ADVISOR_INSTRUCTIONS,
+    GUIDE_WORKFLOW,
+    TASK_PROMPTS,
+    TaskPrompt,
+)
 from msf_assistant.snapshot import SnapshotError, SnapshotReader
 
 Offset = Annotated[int, Field(ge=0, strict=True)]
@@ -152,50 +157,52 @@ def register_tools(
                 "Advisor context could not be read or saved; check the local context file"
             ) from None
 
-    @server.prompt()
-    def plan_upgrades(question: str) -> str:
-        """Plan roster-based upgrades with saved goals and research in the connected host."""
-        return ADVISOR_INSTRUCTIONS + "\n\nAktuelle Frage des Nutzers:\n" + question
+    register_prompts(server)
+
+    @server.tool(annotations=read)
+    def get_guide() -> dict[str, Any]:
+        """Explain the advisory workflow and prompts; call this first in a new conversation."""
+        return guide()
 
     @server.tool(annotations=read)
     def get_status() -> dict[str, Any]:
-        """Show snapshot availability, row counts and data age; does not contact MSF."""
+        """Check data availability, row counts and age first; see get_guide for the workflow."""
         return safe_call(reader.status)
 
     @server.tool(annotations=read)
     def get_player_profile() -> dict[str, Any]:
-        """Read the player's profile, account level and total power, with retrieval time."""
+        """Read the player's profile, account level and total power after get_status."""
         return safe_call(reader.profile)
 
     @server.tool(annotations=read)
     def get_player_roster(
         query: Query = "", offset: Offset = 0, limit: Limit = 50
     ) -> dict[str, Any]:
-        """Read owned characters, strongest first. Search character ID/name with query."""
+        """Page through owned characters, strongest first; filter by ID/name with query."""
         return safe_call(reader.roster, query, offset, limit)
 
     @server.tool(annotations=read)
     def get_inventory(query: Query = "", offset: Offset = 0, limit: Limit = 50) -> dict[str, Any]:
-        """Read owned inventory item quantities; search item ID/name with query."""
+        """Read owned item quantities (search by ID/name) when materials matter."""
         return safe_call(reader.inventory, query, offset, limit)
 
     @server.tool(annotations=read)
     def get_game_characters(
         query: Query = "", offset: Offset = 0, limit: Limit = 50
     ) -> dict[str, Any]:
-        """Search compact character summaries by ID/name. Use get_character for full abilities."""
+        """Search the character catalog by ID/name, owned or not; then use get_character."""
         return safe_call(reader.characters, query, offset, limit)
 
     @server.tool(annotations=read)
     def get_character(
         character_id: Annotated[str, Field(min_length=1, max_length=200)],
     ) -> dict[str, Any]:
-        """Get one character's static details and owned roster stats by exact character ID."""
+        """Get abilities and owned stats for one exact character ID from a roster/catalog row."""
         return safe_call(reader.character, character_id)
 
     @server.tool(annotations=read)
     def get_advisor_context() -> dict[str, Any]:
-        """Read saved goals, player facts, and sourced recommendations with current revision."""
+        """Read saved goals, facts and recommendations plus the revision every save needs."""
         return safe_context_call(context.read)
 
     if not read_only:
@@ -297,3 +304,54 @@ def register_tools(
             return safe_call(reader.status)
 
     return server
+
+
+def guide() -> dict[str, Any]:
+    """Workflow overview for hosts that do not surface server instructions."""
+    prompts = {name: prompt.description for name, prompt in TASK_PROMPTS.items()}
+    return {
+        "workflow": list(GUIDE_WORKFLOW),
+        "prompts": {**prompts, "plan_upgrades": PLAN_UPGRADES_DESCRIPTION},
+        "instructions": ADVISOR_INSTRUCTIONS,
+    }
+
+
+def guide_text() -> str:
+    steps = "\n".join(f"{n}. {step}" for n, step in enumerate(GUIDE_WORKFLOW, 1))
+    return f"Advisor workflow\n\n{steps}\n\n{ADVISOR_INSTRUCTIONS}"
+
+
+PLAN_UPGRADES_DESCRIPTION = (
+    "Plan roster-based upgrades with saved goals and research in the connected host."
+)
+
+
+def render_prompt(question: str, focus: str = "") -> str:
+    parts = [ADVISOR_INSTRUCTIONS]
+    if focus:
+        parts.append(focus)
+    parts.append("The user's current question:\n" + (question or "(none given)"))
+    return "\n\n".join(parts)
+
+
+def register_prompts(server: AdvisorServer) -> None:
+    """Expose the general prompt plus one narrowed prompt per common task."""
+
+    @server.prompt(description=PLAN_UPGRADES_DESCRIPTION)
+    def plan_upgrades(question: str) -> str:
+        return render_prompt(question)
+
+    for name, task in TASK_PROMPTS.items():
+        server.prompt(name=name, description=task.description)(task_prompt(task))
+
+    @server.resource("guide://advisor", name="Advisor guide", mime_type="text/plain")
+    def advisor_guide() -> str:
+        """Workflow guide and advisory instructions."""
+        return guide_text()
+
+
+def task_prompt(task: TaskPrompt) -> Callable[[str], str]:
+    def prompt(question: str = "") -> str:
+        return render_prompt(question, task.focus)
+
+    return prompt

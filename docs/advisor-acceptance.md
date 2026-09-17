@@ -11,7 +11,9 @@ and roster values belong in `outputs/` only, never in the repository.
 - Concurrent changes must not lose data; a stale revision is rejected.
 - A failed save keeps the existing data and returns an error.
 - Read-only mode changes neither the snapshot nor the advisor context.
-- Advisory instructions and `plan_upgrades` are retrievable over the MCP protocol.
+- Advisory instructions, `get_guide`, the resource `guide://advisor` and the
+  prompts (`plan_upgrades` plus the five task prompts) are retrievable over the
+  MCP protocol; the instructions are English.
 
 These are covered by the automated test suite (`pytest`).
 

@@ -76,6 +76,7 @@ in the browser URL or API headers; token requests do not follow redirects.
 
 | Tool | Result |
 | --- | --- |
+| `get_guide` | workflow overview, available prompts, full instructions |
 | `get_status` | availability, data age, counts |
 | `get_player_profile` | profile, level, total power |
 | `get_player_roster` | own characters by power, name search |
@@ -90,7 +91,10 @@ Lists take `query`, `offset` and `limit` (1–100) and report `total` and
 `next_offset`. Responses carry the retrieval time; data older than 24 hours is
 flagged stale. The catalog is fetched in small pages because MSF rejects large
 responses with full ability data. The prompt `plan_upgrades` takes a concrete
-game question; the advisory instructions are also sent at initialization.
+game question; `next_upgrade`, `prepare_dark_dimension`, `long_term_value`,
+`evaluate_new_team` and `data_check` narrow it to one task. The advisory
+instructions are sent at initialization, returned by `get_guide` and exposed as
+the resource `guide://advisor`.
 
 More: [advisor guide](docs/advisor-guide.md),
 [connecting the local server](docs/chatgpt-connection.md),

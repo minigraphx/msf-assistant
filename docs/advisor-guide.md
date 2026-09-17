@@ -14,12 +14,18 @@ package contains no chatbot and no web crawler of its own.
 
 Hosts that support MCP prompts can call `plan_upgrades` with the concrete
 question instead. The same workflow is delivered as instructions when the
-server initialises. Whether the AI applies these instructions correctly must be
-checked in your host against the [acceptance cases](advisor-acceptance.md).
+server initialises, and the read-only tool `get_guide` returns it on demand for
+hosts that do not show server instructions (ChatGPT). Whether the AI applies
+these instructions correctly must be checked in your host against the
+[acceptance cases](advisor-acceptance.md).
 
 You can ask directly whom to upgrade next, how to prepare for DD8, which
 characters look useful long-term, or whether a new team is worth it. For a
 supposedly "newest" team, the current release state has to be established first.
+Hosts that list prompts offer these as `next_upgrade`, `prepare_dark_dimension`,
+`long_term_value`, `evaluate_new_team` and `data_check` (the last one only
+reports data state and freshness, without advice). Each takes an optional
+`question`.
 
 ## What answers should look like
 

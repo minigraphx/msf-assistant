@@ -38,6 +38,7 @@ async def test_protocol_tools_and_queries(snapshot):
         listing = await client.list_tools()
         names = {tool.name for tool in listing.tools}
         assert names == {
+            "get_guide",
             "get_status",
             "get_player_profile",
             "get_player_roster",
@@ -51,6 +52,7 @@ async def test_protocol_tools_and_queries(snapshot):
             "delete_advisor_record",
         }
         read_names = {
+            "get_guide",
             "get_status",
             "get_player_profile",
             "get_player_roster",
@@ -71,6 +73,7 @@ async def test_protocol_tools_and_queries(snapshot):
         assert writes["save_recommendation"].input_schema["properties"]["sources"]
         assert writes["save_recommendation"].input_schema["properties"]["character_plans"]
         for tool, arguments in [
+            ("get_guide", {}),
             ("get_status", {}),
             ("get_player_profile", {}),
             ("get_player_roster", {"query": "wolv"}),

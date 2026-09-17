@@ -84,6 +84,14 @@ def test_auth_isolation_scopes_and_prompt(env):
             {"name": "plan_upgrades", "arguments": {"question": "Hi"}},
         )
         assert prompt.status_code == 200
+        guide = rpc(http, b.access_token, "tools/call", {"name": "get_guide"})
+        assert guide.json()["result"]["structuredContent"]["workflow"]
+        task = rpc(
+            http, b.access_token, "prompts/get", {"name": "data_check", "arguments": {}}
+        )
+        assert "Task focus" in task.text
+        resource = rpc(http, b.access_token, "resources/read", {"uri": "guide://advisor"})
+        assert "get_status" in resource.text
         extra = rpc(
             http,
             a.access_token,
