@@ -111,7 +111,7 @@ def privacy_body(operator: Operator | None, public_url: str) -> str:
         "zeitversetzt aus; eine Löschung wirkt dort erst mit dem Ablauf der jeweiligen "
         "Kopie.</p>"
         "<h2>7. Deine Rechte</h2>"
-        "<p>Du kannst jederzeit unter <a href=\"/account\">Konto und Verbindungen</a> "
+        '<p>Du kannst jederzeit unter <a href="/account">Konto und Verbindungen</a> '
         "einzelne Verbindungen widerrufen oder dein Konto vollständig löschen. Die Löschung "
         "deaktiviert den Zugang und entfernt aktive Zugangsdaten und Spielerdateien; "
         "Widerrufs- und Sicherheitseinträge können ohne Personenbezug verbleiben. Darüber "
@@ -171,9 +171,9 @@ def terms_body(operator: Operator | None, public_url: str) -> str:
         "<h2>6. Sperrung und Beendigung</h2>"
         "<p>Bei Verstößen gegen diese Bedingungen oder bei Gefährdung des Betriebs kann der "
         "Anbieter Verbindungen widerrufen oder Konten sperren. Du kannst dein Konto jederzeit "
-        "unter <a href=\"/account\">Konto und Verbindungen</a> löschen.</p>"
+        'unter <a href="/account">Konto und Verbindungen</a> löschen.</p>'
         "<h2>7. Datenschutz</h2>"
-        "<p>Die Verarbeitung deiner Daten ist in der <a href=\"/privacy.html\">"
+        '<p>Die Verarbeitung deiner Daten ist in der <a href="/privacy.html">'
         "Datenschutzerklärung</a> beschrieben.</p>"
         "<h2>8. Anwendbares Recht</h2>"
         "<p>Es gilt Schweizer Recht unter Ausschluss der Kollisionsnormen. Gerichtsstand ist "

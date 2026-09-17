@@ -378,15 +378,29 @@ def test_privacy_and_terms_name_the_operator_and_are_linked(setup):
     _, _, _, browser = setup
     privacy = browser.get("/privacy.html")
     assert privacy.status_code == 200
-    for expected in ("Verantwortlich", "Max &lt;Muster&gt;", "Musterweg 1, 8000 Zürich",
-                     "max@example.invalid", "Scopely", "ChatGPT", "Claude", "Auskunft",
-                     "__Host-msf_session"):
+    for expected in (
+        "Verantwortlich",
+        "Max &lt;Muster&gt;",
+        "Musterweg 1, 8000 Zürich",
+        "max@example.invalid",
+        "Scopely",
+        "ChatGPT",
+        "Claude",
+        "Auskunft",
+        "__Host-msf_session",
+    ):
         assert expected in privacy.text, expected
     assert "<Muster>" not in privacy.text
     terms = browser.get("/terms.html")
     assert terms.status_code == 200
-    for expected in ("Nutzungsbedingungen", "Max &lt;Muster&gt;", "Scopely", "eigenes MSF-Konto",
-                     "ohne Gewähr", "Schweizer Recht"):
+    for expected in (
+        "Nutzungsbedingungen",
+        "Max &lt;Muster&gt;",
+        "Scopely",
+        "eigenes MSF-Konto",
+        "ohne Gewähr",
+        "Schweizer Recht",
+    ):
         assert expected in terms.text, expected
     for path in ("/", "/privacy.html", "/terms.html"):
         text = browser.get(path).text
