@@ -12,7 +12,7 @@ set -euo pipefail
 IMAGE="${1:?image tag, e.g. msf-assistant:0.4.0-b24a030}"
 WITH_NGINX="${2:-}"
 STAGE="${STAGE:-/home/ubuntu/msf-deploy}"
-PUBLIC_URL="${PUBLIC_URL:-https://msf.andywhv.de}"
+PUBLIC_URL="${PUBLIC_URL:-https://advisor.andywhv.de}"
 SERVICE_UID=10001
 PLACEHOLDER="PENDING-MSF-APP-REGISTRATION"
 
@@ -60,6 +60,7 @@ ENV
 else
   echo "   keeping existing /etc/msf-assistant/hosted.env"
   sed -i "s|^MSF_IMAGE=.*|MSF_IMAGE=$IMAGE|" /etc/msf-assistant/hosted.env
+  sed -i "s|^MSF_PUBLIC_URL=.*|MSF_PUBLIC_URL=$PUBLIC_URL|" /etc/msf-assistant/hosted.env
   for pair in MSF_OPERATOR_NAME=REPLACE_WITH_OPERATOR_NAME \
               MSF_OPERATOR_ADDRESS=REPLACE_WITH_POSTAL_ADDRESS \
               MSF_OPERATOR_EMAIL=REPLACE_WITH_CONTACT@example.invalid; do
@@ -98,13 +99,15 @@ echo "   health: $(curl -sS http://127.0.0.1:8000/health)"
 
 if [ "$WITH_NGINX" = "--nginx" ]; then
   echo "== nginx"
-  SITE=/etc/nginx/sites-available/msf.andywhv.de
+  SITE=/etc/nginx/sites-available/advisor.andywhv.de
   install -m 0644 -o root -g root "$STAGE/nginx.conf.example" "$SITE"
-  ln -sfn "$SITE" /etc/nginx/sites-enabled/msf.andywhv.de
+  ln -sfn "$SITE" /etc/nginx/sites-enabled/advisor.andywhv.de
+  # Previous public name; remove so nothing answers under a Scopely/Marvel mark.
+  rm -f /etc/nginx/sites-enabled/msf.andywhv.de /etc/nginx/sites-available/msf.andywhv.de
   if nginx -t; then
     systemctl reload nginx
   else
-    rm -f /etc/nginx/sites-enabled/msf.andywhv.de
+    rm -f /etc/nginx/sites-enabled/advisor.andywhv.de
     echo "nginx config test failed; site disabled, nginx untouched" >&2
     exit 1
   fi

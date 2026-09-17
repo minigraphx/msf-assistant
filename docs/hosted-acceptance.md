@@ -7,8 +7,8 @@ codes or callback URLs into notes.
 
 ## Prerequisites
 
-- Service healthy at `https://msf.andywhv.de/health`, image tag noted.
-- MSF app registered with callback `https://msf.andywhv.de/oauth/callback`;
+- Service healthy at `https://advisor.andywhv.de/health`, image tag noted.
+- MSF app registered with callback `https://advisor.andywhv.de/oauth/callback`;
   `MSF_CLIENT_ID` and `/etc/msf-assistant/secrets/msf-client-secret` set to the
   real values; `systemctl restart msf-assistant.service` done; no placeholder
   left (`sudo grep -c PENDING /etc/msf-assistant/hosted.env` prints 0).
@@ -20,9 +20,9 @@ codes or callback URLs into notes.
 ## 1. First connection — Player A, Claude
 
 1. Claude → Customize → Connectors → Add custom connector →
-   `https://msf.andywhv.de/mcp`. If asked for the OAuth client, choose
+   `https://advisor.andywhv.de/mcp` (shown as "Strike Advisor"). If asked for the OAuth client, choose
    **Register automatically**.
-2. Browser opens `msf.andywhv.de` → "Sign in with MSF" → MSF login as A →
+2. Browser opens `advisor.andywhv.de` → "Sign in with MSF" → MSF login as A →
    consent page shows "Claude (claude.ai)", the connection ID, **Connected MSF
    account** = first 8 characters of A's subject, and three permissions.
 3. Allow → Claude reports the connector as connected.
@@ -37,7 +37,7 @@ the client asks for a client secret.
 ## 2. Same player, second client — Player A, ChatGPT
 
 1. ChatGPT → Settings → Security and sign-in → Developer mode → Plugins → add
-   `https://msf.andywhv.de/mcp` → Connect → MSF login as A (may be skipped if
+   `https://advisor.andywhv.de/mcp` → Connect → MSF login as A (may be skipped if
    the browser session is still valid) → consent shows "ChatGPT (chatgpt.com)".
 2. "Show my profile." → same data as in Claude **without** running refresh_data.
 3. "Save a goal: unlock Apocalypse." (`save_goal`) → success with a revision.
@@ -69,7 +69,7 @@ Pass: no cross-account data in any direction.
 
 ## 5. Revocation — Player A
 
-1. Open `https://msf.andywhv.de/account` (browser session) → both
+1. Open `https://advisor.andywhv.de/account` (browser session) → both
    connections listed with client labels and permissions.
 2. Revoke the **ChatGPT** connection.
 3. ChatGPT: any tool call fails with an authentication error; Claude still

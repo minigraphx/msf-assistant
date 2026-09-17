@@ -433,3 +433,15 @@ def test_failures_log_only_route_and_exception_class(setup, caplog):
     messages = [r.getMessage() for r in caplog.records]
     assert any("/account/delete" in m and "Error" in m for m in messages), messages
     assert all("forged-secret-value" not in m for m in messages)
+
+
+def test_scopely_is_named_as_data_source_without_endorsement(setup):
+    _, _, _, browser = setup
+    for path in ("/", "/privacy.html", "/terms.html"):
+        text = browser.get(path).text
+        assert "provided by Scopely" in text, path
+        assert "not endorsed by" in text, path
+    privacy = browser.get("/privacy.html").text
+    assert "as is" in privacy
+    assert "30 days" in privacy
+    assert "<title>Strike Advisor</title>" in privacy

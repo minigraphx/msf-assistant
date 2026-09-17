@@ -3,7 +3,7 @@
 This bundle is ready for local verification, not evidence of a public deployment.
 Public release requires a maintained host OS, approval/configuration of the MSF
 application for multiple players and the exact redirect
-`https://msf.andywhv.de/oauth/callback`, and real ChatGPT/Claude acceptance tests.
+`https://advisor.andywhv.de/oauth/callback`, and real ChatGPT/Claude acceptance tests.
 The existing macOS local service and Keychain remain independent.
 
 ## Runtime and host prerequisites
@@ -32,7 +32,7 @@ effect. Build on a separate machine for `linux/amd64`, not on the small server.
 | `/var/lib/msf-assistant/` | Dedicated persistent bind source, UID 10001, 0700 |
 | `/var/lib/msf-assistant/state/` | SQLite, encrypted tokens, player snapshots/context; 0700/0600 |
 | `/var/lib/msf-assistant/backups/` | Private local archives; 0700/0600 |
-| `/etc/nginx/sites-available/msf.andywhv.de` (+ `sites-enabled` symlink) | New dedicated nginx vhost |
+| `/etc/nginx/sites-available/advisor.andywhv.de` (+ `sites-enabled` symlink) | New dedicated nginx vhost |
 | `/etc/systemd/system/msf-assistant.service` | Reviewed systemd wrapper |
 
 `/var` must be a separately mounted filesystem. The systemd unit supervises attached Compose and restarts it after either clean
@@ -108,7 +108,7 @@ traffic solely because the health check passes. A production load test must also
 leave headroom for nginx, existing applications and the OS.
 
 Use `nginx.conf.example` as the dedicated vhost. The public name is
-`msf.andywhv.de`; the `andywhv.de` Route53 zone already resolves it through its
+`advisor.andywhv.de`; the `andywhv.de` Route53 zone already resolves it through its
 wildcard `A` record to this host, so no DNS change is needed. The host's
 `andywhv.de` Let's Encrypt certificate is a wildcard (`*.andywhv.de`) and covers
 this name; the vhost shares it like the other `andywhv.de` sites. That
@@ -135,13 +135,15 @@ Backup acquires an exclusive service maintenance lock (bounded wait), uses
 SQLite's online backup API, and archives the matching player files while all
 mutations are blocked. Retry a busy result later; never copy the live database
 and player files separately. OAuth and browser mutations participate in the
-same lock. Archives contain only the database and UUID player snapshot/context
-files, including encrypted upstream credentials. Installation keys and app
-secrets are excluded. Authentication metadata and snapshots are still private:
+same lock. Archives contain only the database and UUID player context files,
+including encrypted upstream credentials; game data snapshots are never archived
+(MSF API terms: 30-day TTL and immediate deletion on request; they are
+re-fetched with `refresh_data`). Installation keys and app secrets are excluded. Authentication metadata and snapshots are still private:
 protect archives as personal data. The archive is limited to 512 MiB, 20,000
 files, 128 MiB per database and 24 MiB per player file; archive growth beyond
 these bounds fails closed and requires a reviewed capacity change. Retention is
-1–30 archives and removes only matching private backup files after success.
+1–30 archives and at most `--max-age-days` (default and maximum 30) days; both
+remove only matching private backup files after success.
 
 **Same-host copies do not protect against server/disk loss.** After each backup,
 copy the archive over an authenticated encrypted channel to a separate managed
@@ -225,6 +227,38 @@ subject. With the service stopped, validate the snapshot, copy only the snapshot
 private directory as UID 10001/0600, and test access from a fresh client. Never
 copy `.env`, Keychain exports, local tokens or another player's files. Keep the
 local runtime available until explicit cutover acceptance.
+
+## Obligations under the MSF API Terms of Use
+
+The registered Application is the public service at `https://advisor.andywhv.de`
+(title "Strike Advisor"): neither title nor URL contains a Scopely or Marvel
+mark; every page names Scopely as the source of the game data without implying
+endorsement. The implementation enforces:
+
+- **30-day TTL on Data**: a player's snapshot older than 30 days is deleted on
+  access and tools ask for `refresh_data`; snapshots are never written to
+  backups; archives are deleted after `--max-age-days` (default and maximum 30).
+- **Deletion on request**: `/account` deletion or `hosted delete-player UUID`
+  removes the snapshot immediately; backups hold no game data. Requests that
+  reach the operator through Scopely must be executed promptly.
+- **Privacy notice** states that Data is provided "as is", what is collected
+  and the retention above.
+
+Operator duties that no code can perform:
+
+- **Breach notice within 24 hours**: if you believe the API key or any player
+  Data was accessed or disclosed by an unauthorized party, notify Scopely
+  (legal address in the API terms) within 24 hours with all circumstances, and
+  rotate the client secret (new 0600 file, restart the service).
+- **Termination by Scopely**: stop the service (`systemctl disable --now
+  msf-assistant.service`), remove the nginx site, delete
+  `/var/lib/msf-assistant/state/players/*/snapshot.json` and all archives under
+  `/var/lib/msf-assistant/backups`, then delete the state directory and the
+  off-host copies. Keep no copy of Data.
+- Keep the registration data at the Scopely developer site current and the API
+  key confidential; never share it with players or third-party services.
+- Do not add paid tiers, donation gates, advertising, or any monetization of
+  the Data, and do not target players under 13.
 
 ## Client connection
 

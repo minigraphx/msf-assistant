@@ -31,6 +31,26 @@ HOSTED_MESSAGES = ToolMessages(
 MISSING_SNAPSHOT = (
     "No game data stored for this account yet; run refresh_data to fetch it from MSF."
 )
+# MSF API Terms of Use: Data pulled from the API is retained at most 30 days.
+SNAPSHOT_TTL_SECONDS = 30 * 86400
+EXPIRED_SNAPSHOT = (
+    "The stored game data expired after 30 days and was deleted; run refresh_data to fetch "
+    "it again from MSF."
+)
+
+
+def expire_snapshot(path, *, now=None):
+    """Delete a snapshot older than the TTL; return True when it was removed."""
+    try:
+        age = (now or time.time()) - path.stat().st_mtime
+    except FileNotFoundError:
+        return False
+    if age <= SNAPSHOT_TTL_SECONDS:
+        return False
+    path.unlink(missing_ok=True)
+    return True
+
+
 PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource/mcp"
 WRITE_TOOLS = frozenset(
     {
@@ -65,9 +85,12 @@ class PlayerBackend:
             player_id = _player.get()
             with self.store.player_lock(player_id):
                 directory = self.store.player_dir(player_id)
-                missing = not (directory / "snapshot.json").exists()
-                if self.kind == "snapshot" and name != "status" and missing:
-                    raise SnapshotError(MISSING_SNAPSHOT)
+                if self.kind == "snapshot":
+                    expired = expire_snapshot(directory / "snapshot.json")
+                    if name != "status" and expired:
+                        raise SnapshotError(EXPIRED_SNAPSHOT)
+                    if name != "status" and not (directory / "snapshot.json").exists():
+                        raise SnapshotError(MISSING_SNAPSHOT)
                 backend = (
                     SnapshotReader(directory / "snapshot.json")
                     if self.kind == "snapshot"
@@ -242,7 +265,7 @@ def create_hosted_app(
         raise ValueError("OAuth issuer must match the public URL")
     sync = HostedSync(store, settings, login_url=public_url + "/login")
     server = AdvisorServer(
-        "MSF Assistant",
+        "Strike Advisor",
         version="0.4.0",
         instructions=ADVISOR_INSTRUCTIONS,
         log_level="WARNING",

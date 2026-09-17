@@ -1,4 +1,4 @@
-# Install as /etc/nginx/sites-available/msf.andywhv.de and symlink it into
+# Install as /etc/nginx/sites-available/advisor.andywhv.de and symlink it into
 # sites-enabled, matching the host's other vhosts.
 # Never use $request or $request_uri: OAuth callback queries contain secrets.
 log_format msf_safe '$remote_addr [$time_local] "$request_method $uri $server_protocol" '
@@ -10,21 +10,22 @@ limit_req_zone $binary_remote_addr zone=msf_register:1m rate=6r/m;
 limit_req_zone $binary_remote_addr zone=msf_auth:1m rate=30r/m;
 limit_req_zone $binary_remote_addr zone=msf_mcp:1m rate=120r/m;
 limit_req_status 429;
-# msf.andywhv.de resolves through the zone's wildcard A record to this host and
+# advisor.andywhv.de (no Scopely/Marvel mark in the name, per the MSF API terms)
+# resolves through the zone's wildcard A record to this host and
 # is covered by the host's existing wildcard certificate (*.andywhv.de), which
 # is renewed manually via DNS-01; check its expiry with the other andywhv.de vhosts.
 server {
     listen 80;
     listen [::]:80;
-    server_name msf.andywhv.de;
+    server_name advisor.andywhv.de;
     access_log /var/log/nginx/msf-access.log msf_safe;
     error_log /dev/null crit;
-    return 308 https://msf.andywhv.de$uri;
+    return 308 https://advisor.andywhv.de$uri;
 }
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name msf.andywhv.de;
+    server_name advisor.andywhv.de;
     ssl_certificate /etc/letsencrypt/live/andywhv.de/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/andywhv.de/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;

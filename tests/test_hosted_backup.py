@@ -257,7 +257,7 @@ def test_backup_cannot_split_a_token_and_player_file_update(tmp_path):
             store.save_tokens(player.id, TokenSet("synthetic-new"))
             halfway.set()
             assert release.wait(2)
-            output = store.player_dir(player.id) / "snapshot.json"
+            output = store.player_dir(player.id) / "context.json"
             output.write_text('{"version":"new"}')
             output.chmod(0o600)
 
@@ -271,7 +271,7 @@ def test_backup_cannot_split_a_token_and_player_file_update(tmp_path):
         archive = saving.result()
     recovered = restore(archive, tmp_path / "restore", key, maintenance=True)
     assert recovered.load_tokens(player.id).access_token == "synthetic-new"
-    assert (recovered.player_dir(player.id) / "snapshot.json").read_text() == '{"version":"new"}'
+    assert (recovered.player_dir(player.id) / "context.json").read_text() == '{"version":"new"}'
 
 
 def test_maintenance_blocks_a_separate_process(tmp_path):
@@ -327,3 +327,52 @@ def test_forked_child_cannot_borrow_parent_exclusive_lease(tmp_path):
             os._exit(1)
         _, status = os.waitpid(child, 0)
     assert os.waitstatus_to_exitcode(status) == 0
+
+
+def test_backups_exclude_game_data_and_expire_by_age(tmp_path):
+    """MSF API terms: Data lives at most 30 days and is deleted on request, so
+    re-fetchable snapshots never enter backups and archives age out."""
+    import os
+    import tarfile
+    import time
+
+    from msf_assistant.hosted_backup import backup
+
+    store = HostedStore(tmp_path / "data", Fernet.generate_key())
+    player = store.player("issuer", "alice")
+    directory = store.player_dir(player.id)
+    for name in ("snapshot.json", "context.json"):
+        (directory / name).write_text("{}")
+        (directory / name).chmod(0o600)
+    archive = backup(store, tmp_path / "backups", retention=30)
+    with tarfile.open(archive, "r:") as tar:
+        assert sorted(tar.getnames()) == ["hosted.sqlite3", f"players/{player.id}/context.json"]
+    old = time.time() - 31 * 86400
+    os.utime(archive, (old, old))
+    fresh = backup(store, tmp_path / "backups", retention=30)
+    assert fresh.exists() and not archive.exists()
+
+
+def test_restore_skips_legacy_snapshot_members(tmp_path):
+    import io
+    import tarfile
+
+    from msf_assistant.hosted_backup import backup, restore
+
+    key = Fernet.generate_key()
+    store = HostedStore(tmp_path / "data", key)
+    player = store.player("issuer", "alice")
+    archive = backup(store, tmp_path / "backups")
+    legacy = tmp_path / "legacy.tar"
+    with (
+        tarfile.open(archive, "r:") as source,
+        tarfile.open(legacy, "w", format=tarfile.USTAR_FORMAT) as target,
+    ):
+        for member in source:
+            target.addfile(member, source.extractfile(member))
+        payload = b"{}"
+        info = tarfile.TarInfo(f"players/{player.id}/snapshot.json")
+        info.size, info.mode = len(payload), 0o600
+        target.addfile(info, io.BytesIO(payload))
+    recovered = restore(legacy, tmp_path / "restore", key, maintenance=True)
+    assert not (recovered.player_dir(player.id) / "snapshot.json").exists()

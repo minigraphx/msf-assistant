@@ -23,6 +23,12 @@ from msf_assistant.hosted_pages import Operator, privacy_body, terms_body
 __all__ = ["Operator", "account_routes", "page"]
 
 logger = logging.getLogger("msf_assistant.hosted")
+# MSF API Terms of Use §2k: name Scopely as the source of the Data on every page,
+# without implying endorsement; no Scopely/Marvel marks in the title or URL.
+ATTRIBUTION = (
+    "<p>Game data is provided by Scopely's Marvel Strike Force API. This service is "
+    "not endorsed by, sponsored by or affiliated with Scopely or Marvel.</p>"
+)
 COOKIE = "__Host-msf_session"
 SESSION_TTL = 8 * 3600
 LOGIN_TTL = 600
@@ -49,8 +55,9 @@ def page(body, status=200, *, form_origins=""):
     form_policy = "form-action 'self'" + (" " + form_origins if form_origins else "")
     return HTMLResponse(
         '<!doctype html><html lang="en"><meta charset="utf-8">'
-        "<title>MSF Assistant</title><body>"
+        "<title>Strike Advisor</title><body>"
         + body
+        + ATTRIBUTION
         + '<p><a href="/">Help</a> · <a href="/privacy.html">Privacy</a> · '
         '<a href="/terms.html">Terms</a></p></body></html>',
         status_code=status,
@@ -199,7 +206,7 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
 
     async def home(request):
         return page(
-            "<h1>MSF Assistant</h1><p>Connect your own Marvel Strike Force account to "
+            "<h1>Strike Advisor</h1><p>Connect your own Marvel Strike Force account to "
             "your AI assistant. Every player signs in directly with MSF; no separate "
             "password is needed.</p><p>Once connected, you can refresh your data from "
             "inside the assistant. Signing in does not start a full "

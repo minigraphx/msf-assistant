@@ -189,6 +189,7 @@ def main(argv=None):
     save = commands.add_parser("backup", help="Create a coherent private backup")
     save.add_argument("directory", type=Path)
     save.add_argument("--retention", type=int, default=7)
+    save.add_argument("--max-age-days", type=int, default=30)
     recover = commands.add_parser("restore", help="Restore into a NEW root in maintenance")
     recover.add_argument("archive", type=Path)
     recover.add_argument("--maintenance", action="store_true", required=True)
@@ -209,7 +210,14 @@ def main(argv=None):
                 restore(args.archive, root, key, maintenance=args.maintenance)
                 print("Restored in maintenance. Reconcile post-backup deletions before resume.")
             elif args.command == "backup":
-                print(backup(HostedStore(root, key), args.directory, retention=args.retention))
+                print(
+                    backup(
+                        HostedStore(root, key),
+                        args.directory,
+                        retention=args.retention,
+                        max_age_days=args.max_age_days,
+                    )
+                )
             elif args.command == "delete-player":
                 delete_player(root, key, args.player_id)
                 print("Player deleted; connections revoked.")

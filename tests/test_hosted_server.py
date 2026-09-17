@@ -529,3 +529,23 @@ def test_write_tools_match_registered_annotations():
     tools = asyncio.run(server.list_tools())
     writes = {t.name for t in tools if not t.annotations.read_only_hint}
     assert writes == set(hosted_server.WRITE_TOOLS)
+
+
+def test_snapshots_expire_after_thirty_days(env):
+    """MSF API terms require a 30-day TTL on Data pulled from the API."""
+    import os
+    import time
+
+    app, store, provider, alice, a, bob, b = env
+    path = store.player_dir(alice.id) / "snapshot.json"
+    path.write_text('{"retrieved_at": "old"}')
+    path.chmod(0o600)
+    old = time.time() - 31 * 86400
+    os.utime(path, (old, old))
+    with TestClient(app, base_url="https://msf.example") as http:
+        profile = rpc(http, a.access_token, "tools/call", {"name": "get_player_profile"})
+        assert profile.json()["result"]["isError"]
+        assert "expired" in profile.text and "refresh_data" in profile.text
+        assert not path.exists()
+        status = rpc(http, a.access_token, "tools/call", {"name": "get_status"})
+        assert status.json()["result"]["structuredContent"]["available"] is False
