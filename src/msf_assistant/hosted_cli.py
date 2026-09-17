@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import sqlite3
 import stat
 import sys
@@ -130,6 +131,21 @@ class HostedConfig:
         return cls(root, public, key, settings, Operator.from_env(env), active_requests)
 
 
+def delete_player(root, key, player_id):
+    """Operator deletion, identical to the account page: lock, deactivate, revoke, remove."""
+    import anyio
+
+    from msf_assistant.hosted_oauth import HostedOAuthProvider
+
+    store = HostedStore(root, key)
+    provider = HostedOAuthProvider(store, "https://operator.invalid")
+    with store.player_lock(player_id):
+        path = store.player_dir(player_id)
+        store.deactivate_player(player_id)
+        anyio.run(provider.revoke_player, player_id)
+        shutil.rmtree(path)
+
+
 def serve(config, *, host="127.0.0.1", port=8000):
     if os.path.lexists(config.root / MARKER):
         raise ValueError("Restore maintenance: reconcile deletions and resume before serving")
@@ -178,6 +194,8 @@ def main(argv=None):
     recover.add_argument("--maintenance", action="store_true", required=True)
     reopen = commands.add_parser("resume", help="Release restored-data maintenance")
     reopen.add_argument("--deletions-reconciled", action="store_true", required=True)
+    remove = commands.add_parser("delete-player", help="Delete one player's data and grants")
+    remove.add_argument("player_id")
     args = parser.parse_args(argv)
     try:
         if args.command == "generate-key":
@@ -192,6 +210,9 @@ def main(argv=None):
                 print("Restored in maintenance. Reconcile post-backup deletions before resume.")
             elif args.command == "backup":
                 print(backup(HostedStore(root, key), args.directory, retention=args.retention))
+            elif args.command == "delete-player":
+                delete_player(root, key, args.player_id)
+                print("Player deleted; connections revoked.")
             else:
                 resume(HostedStore(root, key), deletions_reconciled=args.deletions_reconciled)
                 print("Restore maintenance released.")
@@ -199,7 +220,7 @@ def main(argv=None):
     except (sqlite3.Error, tarfile.TarError):
         print("Hosted operation failed: invalid backup or database", file=sys.stderr)
         return 1
-    except (ValueError, OSError) as exc:
+    except (ValueError, OSError, RuntimeError) as exc:
         # Exception details can contain paths but never credential values.
         print(f"Hosted operation failed: {exc}", file=sys.stderr)
         return 1

@@ -3,6 +3,13 @@
 # Never use $request or $request_uri: OAuth callback queries contain secrets.
 log_format msf_safe '$remote_addr [$time_local] "$request_method $uri $server_protocol" '
                     '$status $body_bytes_sent';
+# Per-IP limits for the unauthenticated surface. The application limits
+# authenticated players; these zones stop one address from filling the bounded
+# registration/login capacity or the SQLite file with client metadata.
+limit_req_zone $binary_remote_addr zone=msf_register:1m rate=6r/m;
+limit_req_zone $binary_remote_addr zone=msf_auth:1m rate=30r/m;
+limit_req_zone $binary_remote_addr zone=msf_mcp:1m rate=120r/m;
+limit_req_status 429;
 # msf.andywhv.de resolves through the zone's wildcard A record to this host and
 # is covered by the host's existing wildcard certificate (*.andywhv.de), which
 # is renewed manually via DNS-01; check its expiry with the other andywhv.de vhosts.
@@ -30,14 +37,34 @@ server {
     client_body_timeout 30s;
     add_header Strict-Transport-Security "max-age=31536000" always;
     add_header X-Content-Type-Options nosniff always;
+    # Inherited by every location below; only proxy_pass and limits differ.
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_http_version 1.1;
+    proxy_buffering off;
+    proxy_read_timeout 40s;
+    proxy_send_timeout 30s;
+
+    # Dynamic client registration and token issuance: small bodies, strict rate.
+    location ~ ^/(register|token|revoke)$ {
+        limit_req zone=msf_register burst=6 nodelay;
+        client_max_body_size 16k;
+        proxy_pass http://127.0.0.1:8000;
+    }
+    # Browser login, consent and account pages.
+    location ~ ^/(authorize|login|oauth/callback|consent|account(/.*)?)$ {
+        limit_req zone=msf_auth burst=20 nodelay;
+        client_max_body_size 16k;
+        proxy_pass http://127.0.0.1:8000;
+    }
+    # MCP: a full refresh_data can take several upstream calls of up to 30 s each.
+    location = /mcp {
+        limit_req zone=msf_mcp burst=60 nodelay;
+        proxy_read_timeout 150s;
+        proxy_pass http://127.0.0.1:8000;
+    }
     location / {
         proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_http_version 1.1;
-        proxy_buffering off;
-        proxy_read_timeout 40s;
-        proxy_send_timeout 30s;
     }
 }

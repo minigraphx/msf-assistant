@@ -5,6 +5,7 @@ bounded workers. Acquire maintenance before player locks when composing hosting.
 """
 
 import hashlib
+import logging
 import secrets
 import shutil
 import time
@@ -16,10 +17,12 @@ from starlette.datastructures import FormData
 from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.routing import Route
 
+from msf_assistant.config import DEFAULT_OAUTH_BASE_URL
 from msf_assistant.hosted_pages import Operator, privacy_body, terms_body
 
 __all__ = ["Operator", "account_routes", "page"]
 
+logger = logging.getLogger("msf_assistant.hosted")
 COOKIE = "__Host-msf_session"
 SESSION_TTL = 8 * 3600
 LOGIN_TTL = 600
@@ -155,6 +158,8 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
         raise ValueError("Public origins must match")
     parts = urlsplit(public_url)
     origin = parts.scheme + "://" + parts.netloc
+    upstream = urlsplit(DEFAULT_OAUTH_BASE_URL)  # hosted config enforces the official issuer
+    msf_origin = upstream.scheme + "://" + upstream.netloc
     sessions = BrowserSessions(store)
 
     async def run(fn, *args):
@@ -239,7 +244,7 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
             page(
                 "<h1>MSF-Anmeldung</h1>"
                 + form("/login", payload["csrf"], "<button>Bei MSF anmelden</button>"),
-                form_origins="https://hydra-public.prod.m3.scopelypv.com",
+                form_origins=msf_origin,
             ),
             raw,
         )
@@ -278,12 +283,15 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
         if request.method == "POST":
             await post(request)
             return redirect(await provider.approve(request_id, payload["player"]))
+        account = await run(store.require_player, payload["player"])
         body = (
             "<h1>Verbindung erlauben</h1><p>"
             + escape(client_label(pending))
             + "</p><p>Verbindungskennung: "
             + escape(pending["client_id"])
-            + "</p><ul>"
+            + "</p><p>Verbundenes MSF-Konto: <code>"
+            + escape(account.subject[:8])
+            + "…</code></p><ul>"
         )
         body += (
             "".join("<li>" + escape(PERMISSIONS[s]) + "</li>" for s in pending["scopes"]) + "</ul>"
@@ -357,7 +365,10 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
         async def handle(request):
             try:
                 return await handler(request)
-            except Exception:
+            except Exception as exc:
+                # Operators get the route and exception class; never the message,
+                # which could carry upstream bodies, parameters or credentials.
+                logger.warning("%s failed: %s", request.url.path, type(exc).__name__)
                 # No upstream response bodies, request parameters or credentials in HTML.
                 return page(
                     "<h1>Vorgang nicht möglich</h1><p>Die Anmeldung oder Sitzung ist "

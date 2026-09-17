@@ -1,6 +1,7 @@
 """Authenticated stateless HTTP transport with bounded request admission."""
 
 import json
+import logging
 import time
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -20,6 +21,7 @@ from msf_assistant.hosted_web import account_routes
 from msf_assistant.mcp_server import AdvisorServer, ToolMessages, register_tools
 from msf_assistant.snapshot import SnapshotError, SnapshotReader
 
+logger = logging.getLogger("msf_assistant.hosted")
 _player: ContextVar[str] = ContextVar("hosted_player")
 HOSTED_MESSAGES = ToolMessages(
     read_failed="Spieldaten konnten nicht gelesen werden; refresh_data ausführen.",
@@ -110,7 +112,8 @@ class PublicGuard:
 
         try:
             await self.request(scope, receive, track_send)
-        except Exception:
+        except Exception as exc:
+            logger.warning("%s failed: %s", scope.get("path"), type(exc).__name__)
             if not started:
                 await JSONResponse({"error": "Service temporarily unavailable"}, status_code=503)(
                     scope, receive, send
@@ -220,7 +223,8 @@ class PublicGuard:
 
         try:
             await self.app(scope, replay, bounded_send)
-        except Exception:
+        except Exception as exc:
+            logger.warning("%s failed: %s", scope.get("path"), type(exc).__name__)
             await reject(503, "Service temporarily unavailable")
         else:
             for message in messages:

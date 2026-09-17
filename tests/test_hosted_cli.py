@@ -234,3 +234,43 @@ def test_operator_identity_is_required_for_public_pages(tmp_path, monkeypatch):
     del env["MSF_OPERATOR_NAME"]
     with pytest.raises(ValueError, match="operator"):
         HostedConfig.from_env(env)
+
+
+def test_delete_player_command_removes_data_and_grants(tmp_path, monkeypatch, capsys):
+    from test_hosted_oauth import run, tokens_for
+
+    from msf_assistant.hosted_cli import main
+    from msf_assistant.hosted_oauth import HostedOAuthProvider
+    from msf_assistant.hosted_store import HostedStore, HostedStoreError
+
+    env = config_env(tmp_path)
+    monkeypatch.setattr(os.path, "ismount", lambda p: True)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    store = HostedStore(tmp_path / "data", (tmp_path / "key").read_bytes())
+    provider = HostedOAuthProvider(store, "https://msf.example")
+    player, tokens, _ = tokens_for(provider, store)
+    directory = store.player_dir(player.id)
+    (directory / "snapshot.json").write_text("{}")
+
+    assert main(["delete-player", player.id]) == 0
+    assert "deleted" in capsys.readouterr().out.lower()
+    assert not directory.exists()
+    assert (
+        run(
+            HostedOAuthProvider(store, "https://msf.example").load_access_token(tokens.access_token)
+        )
+        is None
+    )
+    with pytest.raises(HostedStoreError):
+        store.require_player(player.id)
+    assert main(["delete-player", player.id]) == 1
+    assert main(["delete-player", "not-a-uuid"]) == 1
+    assert "credential" not in capsys.readouterr().err.lower()
+
+
+def test_hosted_after_local_options_gets_a_hint_not_a_local_error(capsys):
+    from msf_assistant.cli import main
+
+    assert main(["--env-file", "x", "hosted", "serve"]) == 2
+    assert "erste Argument" in capsys.readouterr().err

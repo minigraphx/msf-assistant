@@ -287,6 +287,9 @@ def test_sdk_http_routes_public_metadata_token_resource_and_rotation(env, refres
             assert response.json()["error"] == "invalid_target"
             assert run(provider.load_authorization_code(app, raw)) is not None
         data["resource"] = "https://msf.example/mcp"
+        wrong = http.post("/token", data=data | {"code_verifier": "y" * 43})
+        assert wrong.status_code == 400 and wrong.json()["error"] == "invalid_grant"
+        assert run(provider.load_authorization_code(app, raw)) is not None
         response = http.post("/token", data=data)
         assert response.status_code == 200, response.text
         refresh = response.json()["refresh_token"]

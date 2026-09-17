@@ -1,5 +1,6 @@
 """Bounded synchronous refresh, always called in a worker thread."""
 
+import logging
 from dataclasses import replace
 from threading import BoundedSemaphore
 
@@ -9,6 +10,7 @@ from msf_assistant.auth import MSFOAuth2
 from msf_assistant.cli import fetch_snapshot
 
 SNAPSHOT_BYTES = 20 * 1024 * 1024
+logger = logging.getLogger("msf_assistant.hosted")
 
 
 class HostedSyncError(RuntimeError):
@@ -66,7 +68,8 @@ class HostedSync:
                 )
         except HostedSyncError:
             raise
-        except Exception:
+        except Exception as exc:
+            logger.warning("refresh failed: %s", type(exc).__name__)
             raise HostedSyncError(
                 "Aktualisierung fehlgeschlagen; später erneut versuchen. "
                 "Vorherige Daten bleiben erhalten."

@@ -333,6 +333,8 @@ def test_selected_callback_identifies_each_opaque_client_grant(setup):
         page = browser.get(target)
         assert label in page.text
         assert "Misleading Other Service" not in page.text
+        # The consent page names the MSF account being connected (subject "alice").
+        assert "Verbundenes MSF-Konto: <code>alice…</code>" in page.text
         assert (
             browser.post(target, data={"csrf": csrf(page)}, headers={"Origin": ORIGIN}).status_code
             == 303
@@ -415,3 +417,19 @@ def test_pages_without_operator_say_so_instead_of_inventing_details(tmp_path):
     with TestClient(app, base_url=ORIGIN) as browser:
         text = browser.get("/privacy.html").text
         assert "nicht konfiguriert" in text
+
+
+def test_failures_log_only_route_and_exception_class(setup, caplog):
+    import logging
+
+    _, _, _, browser = setup
+    with caplog.at_level(logging.WARNING, logger="msf_assistant.hosted"):
+        response = browser.post(
+            "/account/delete",
+            data={"csrf": "forged-secret-value", "confirm": "delete"},
+            headers={"Origin": ORIGIN},
+        )
+    assert response.status_code == 400
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("/account/delete" in m and "Error" in m for m in messages), messages
+    assert all("forged-secret-value" not in m for m in messages)

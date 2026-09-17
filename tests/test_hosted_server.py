@@ -517,3 +517,15 @@ def test_hosted_tool_errors_never_mention_local_cli_commands(env, monkeypatch):
         assert failed.status_code == 200
         assert "https://msf.example/login" in failed.text
         assert "Lokal sync" not in failed.text
+
+
+def test_write_tools_match_registered_annotations():
+    """WRITE_TOOLS gates the write scope; it must equal the tools that declare writes."""
+    from msf_assistant import hosted_server
+    from msf_assistant.mcp_server import AdvisorServer, register_tools
+
+    server = AdvisorServer("t", version="0", instructions="", log_level="WARNING")
+    register_tools(server, object(), object(), refresh=lambda: None)
+    tools = asyncio.run(server.list_tools())
+    writes = {t.name for t in tools if not t.annotations.read_only_hint}
+    assert writes == set(hosted_server.WRITE_TOOLS)

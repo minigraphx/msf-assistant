@@ -180,13 +180,13 @@ Before reopening registration, reconcile **all account deletions after the
 backup date** using the operator's deletion records or a recoverable newer state.
 An old archive can otherwise resurrect an account that the player deleted.
 Keep those records private and retain only what is needed to enforce deletion.
-For each deleted UUID in the restored database, first enter
-`store.player_lock(UUID)` (it requires an *active* player and fails afterwards),
-then call `HostedStore.deactivate_player(UUID)` and remove its `players/UUID`
-directory while still holding that lock; all restored OAuth/browser state is
-already invalidated. Backups skip crash leftovers named `.msf-*` inside a player
-directory; remove them by hand during reconciliation if present. Do this in an offline
-operator session using the matching key file, never an SQL edit against a live
+For each deleted UUID in the restored database run
+`hosted delete-player UUID` against the restored root (with `MSF_HOSTED_DATA`
+pointing at it); it takes the player lock, deactivates the player, revokes all
+grants and removes `players/UUID`, exactly like the account page. Backups skip
+crash leftovers named `.msf-*` inside a player directory; remove them by hand
+during reconciliation if present. Do this while the service is
+stopped, using the matching key file, never an SQL edit against a live
 service. If the deletion history is unavailable, do not reopen this restored
 state: start with a clean root and fresh registrations instead.
 
@@ -227,6 +227,13 @@ copy `.env`, Keychain exports, local tokens or another player's files. Keep the
 local runtime available until explicit cutover acceptance.
 
 ## Client connection
+
+The nginx vhost rate-limits the unauthenticated surface per client address
+(registration/token 6 per minute, browser login pages 30 per minute, `/mcp`
+120 per minute with bursts) and caps OAuth request bodies at 16 KiB; the
+application additionally limits authenticated players. Failures inside the
+service log only the route and the exception class name at WARNING (visible in
+`docker logs`), never messages, parameters or credentials.
 
 The public help page displays the configured origin plus `/mcp` and German setup
 steps. Clients use automatic registration and OAuth/PKCE; players never supply
