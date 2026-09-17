@@ -1,6 +1,7 @@
-# Install as /etc/nginx/sites-available/advisor.andywhv.de and symlink it into
-# sites-enabled, matching the host's other vhosts.
-# Never use $request or $request_uri: OAuth callback queries contain secrets.
+# nginx vhost template. install-host.sh renders __HOST__ (from MSF_PUBLIC_URL)
+# and __CERT_NAME__ (CERT_NAME, default: the host) and installs the result as
+# /etc/nginx/sites-available/<host> with a sites-enabled symlink.
+# Never use $request or $request_uri in logs: OAuth callback queries carry secrets.
 log_format msf_safe '$remote_addr [$time_local] "$request_method $uri $server_protocol" '
                     '$status $body_bytes_sent';
 # Per-IP limits for the unauthenticated surface. The application limits
@@ -10,24 +11,22 @@ limit_req_zone $binary_remote_addr zone=msf_register:1m rate=6r/m;
 limit_req_zone $binary_remote_addr zone=msf_auth:1m rate=30r/m;
 limit_req_zone $binary_remote_addr zone=msf_mcp:1m rate=120r/m;
 limit_req_status 429;
-# advisor.andywhv.de (no Scopely/Marvel mark in the name, per the MSF API terms)
-# resolves through the zone's wildcard A record to this host and
-# is covered by the host's existing wildcard certificate (*.andywhv.de), which
-# is renewed manually via DNS-01; check its expiry with the other andywhv.de vhosts.
+# The certificate must already exist under /etc/letsencrypt/live/__CERT_NAME__
+# (e.g. `certbot certonly --nginx -d __HOST__`, or a wildcard for the zone).
 server {
     listen 80;
     listen [::]:80;
-    server_name advisor.andywhv.de;
+    server_name __HOST__;
     access_log /var/log/nginx/msf-access.log msf_safe;
     error_log /dev/null crit;
-    return 308 https://advisor.andywhv.de$uri;
+    return 308 https://__HOST__$uri;
 }
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name advisor.andywhv.de;
-    ssl_certificate /etc/letsencrypt/live/andywhv.de/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/andywhv.de/privkey.pem;
+    server_name __HOST__;
+    ssl_certificate /etc/letsencrypt/live/__CERT_NAME__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__CERT_NAME__/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     access_log /var/log/nginx/msf-access.log msf_safe;

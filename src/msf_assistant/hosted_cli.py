@@ -17,7 +17,7 @@ from cryptography.fernet import Fernet
 
 from msf_assistant.config import DEFAULT_OAUTH_BASE_URL, Settings
 from msf_assistant.hosted_backup import MARKER, backup, restore, resume
-from msf_assistant.hosted_pages import Operator
+from msf_assistant.hosted_pages import Operator, contains_protected_mark, service_name_from_env
 from msf_assistant.hosted_store import HostedStore
 
 
@@ -91,6 +91,7 @@ class HostedConfig:
     key: bytes = field(repr=False)
     settings: Settings = field(repr=False)
     operator: Operator
+    service_name: str
     active_requests: int = 2
 
     @classmethod
@@ -111,6 +112,11 @@ class HostedConfig:
         ):
             raise ValueError("Public URL must be an HTTPS origin")
         public = public.rstrip("/")
+        if contains_protected_mark(parsed.hostname):
+            raise ValueError(
+                "Public URL must not contain a Scopely or Marvel mark (MSF, Marvel, Strike "
+                "Force, Scopely) per the MSF API Terms of Use"
+            )
         if env.get("MSF_OAUTH_BASE_URL", DEFAULT_OAUTH_BASE_URL) != DEFAULT_OAUTH_BASE_URL:
             raise ValueError("The official MSF issuer is required")
         root, key = storage_config(env)
@@ -128,7 +134,15 @@ class HostedConfig:
         active_requests = int(env.get("MSF_HOSTED_ACTIVE_REQUESTS", "2"))
         if not 1 <= active_requests <= 4:
             raise ValueError("Active requests must be between 1 and 4")
-        return cls(root, public, key, settings, Operator.from_env(env), active_requests)
+        return cls(
+            root,
+            public,
+            key,
+            settings,
+            Operator.from_env(env),
+            service_name_from_env(env),
+            active_requests,
+        )
 
 
 def delete_player(root, key, player_id):
@@ -165,6 +179,7 @@ def serve(config, *, host="127.0.0.1", port=8000):
         config.public_url,
         limits=HostedLimits(active_requests=config.active_requests),
         operator=config.operator,
+        service_name=config.service_name,
     )
     uvicorn.run(
         app,

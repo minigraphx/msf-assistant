@@ -1,10 +1,12 @@
-# Hosted MSF Assistant 0.4.0
+# Hosted service operations (0.4.0)
 
-This bundle is ready for local verification, not evidence of a public deployment.
-Public release requires a maintained host OS, approval/configuration of the MSF
-application for multiple players and the exact redirect
-`https://advisor.andywhv.de/oauth/callback`, and real ChatGPT/Claude acceptance tests.
-The existing macOS local service and Keychain remain independent.
+This guide describes how to run the multi-player service on your own host.
+`<host>` stands for your public host name (for example `advisor.example.com`);
+nothing in the bundle is tied to a specific domain. Public release requires a
+maintained host OS, an MSF application registered with the exact redirect
+`https://<host>/oauth/callback`, and real ChatGPT/Claude acceptance tests
+(`docs/hosted-acceptance.md`). The local macOS stdio mode and its Keychain
+remain independent.
 
 ## Runtime and host prerequisites
 
@@ -15,12 +17,12 @@ the process. Player and maintenance locks additionally serialize separate
 operator processes. Lock order is maintenance → player → SQLite; do not hold a
 SQL transaction while waiting for a player lock.
 
-The host requires Docker and the Docker Compose **plugin v2.20 or later**.
-The preflight host has Docker 24.0.5 and legacy `docker-compose` 1.25.0, which is
-not sufficient; install the supported plugin before deployment. The existing
-Ubuntu 20.04 installation needs a maintained OS path before public release.
-Do not change other nginx sites or perform an OS upgrade as an installation side
-effect. Build on a separate machine for `linux/amd64`, not on the small server.
+The host requires Docker and the Docker Compose **plugin v2.20 or later**
+(legacy `docker-compose` 1.x is not sufficient), nginx with a certificate for
+`<host>`, a separately mounted `/var`, and a maintained OS with security
+updates. Do not change other nginx sites or perform an OS upgrade as an
+installation side effect. Build the image on a separate machine for
+`linux/amd64` rather than on a small server.
 
 | Host path | Purpose / permissions |
 | --- | --- |
@@ -32,7 +34,7 @@ effect. Build on a separate machine for `linux/amd64`, not on the small server.
 | `/var/lib/msf-assistant/` | Dedicated persistent bind source, UID 10001, 0700 |
 | `/var/lib/msf-assistant/state/` | SQLite, encrypted tokens, player snapshots/context; 0700/0600 |
 | `/var/lib/msf-assistant/backups/` | Private local archives; 0700/0600 |
-| `/etc/nginx/sites-available/advisor.andywhv.de` (+ `sites-enabled` symlink) | New dedicated nginx vhost |
+| `/etc/nginx/sites-available/<host>` (+ `sites-enabled` symlink) | Dedicated nginx vhost rendered from `nginx.conf.template` |
 | `/etc/systemd/system/msf-assistant.service` | Reviewed systemd wrapper |
 
 `/var` must be a separately mounted filesystem. The systemd unit supervises attached Compose and restarts it after either clean
@@ -79,14 +81,21 @@ included. The official Python 3.12.14 image is pinned by digest and every runtim
 package is pinned with hashes. MCP remains 2.2.0 for its tested SDK adapters.
 No package resolution or build happens at server startup.
 
-`deploy/install-host.sh <image-tag> [--nginx]` performs the host layout above
-idempotently as root: service identity 10001, private directories, `hosted.env`
-(only if absent; otherwise only `MSF_IMAGE` is updated), a placeholder client
-secret, key generation inside the image, the systemd unit, a health wait and,
-with `--nginx`, the vhost in `sites-available` plus its `sites-enabled` symlink behind `nginx -t`. It never prints secrets and never
-overwrites an existing key, secret or env file. Replace the placeholder
-`MSF_CLIENT_ID` and secret file after MSF app registration, then
-`systemctl restart msf-assistant.service`.
+`sudo PUBLIC_URL=https://<host> bash deploy/install-host.sh <image-tag> [--nginx]`
+performs the host layout above idempotently as root: service identity 10001,
+private directories, `hosted.env` (only if absent; on later runs only
+`MSF_IMAGE`/`MSF_PUBLIC_URL` are updated and missing keys appended), a
+placeholder client secret, key generation inside the image, the systemd unit, a
+health wait and, with `--nginx`, the vhost rendered from `nginx.conf.template`
+into `sites-available/<host>` plus its `sites-enabled` symlink behind `nginx -t`
+(an existing vhost is kept unless `NGINX_REPLACE=1`; a failed test restores the
+previous file). `SERVICE_NAME` sets the page title, `CERT_NAME` the Let's
+Encrypt directory when the certificate is not named after the host (for
+example a zone wildcard). The script never prints secrets and never overwrites
+an existing key, secret or env file. Replace the placeholder `MSF_CLIENT_ID`,
+the secret file and the operator lines after MSF app registration, then
+`systemctl restart msf-assistant.service`. On later upgrades the URL is read
+from the existing env, so `sudo bash install-host.sh <new-tag>` is enough.
 
 Install the reviewed systemd unit, run `systemctl daemon-reload`, and enable/start
 `msf-assistant.service` after validating prerequisites. Compose publishes only
@@ -107,14 +116,12 @@ limitation. Monitor restarts/OOM status and free host RAM; do not enable public
 traffic solely because the health check passes. A production load test must also
 leave headroom for nginx, existing applications and the OS.
 
-Use `nginx.conf.example` as the dedicated vhost. The public name is
-`advisor.andywhv.de`; the `andywhv.de` Route53 zone already resolves it through its
-wildcard `A` record to this host, so no DNS change is needed. The host's
-`andywhv.de` Let's Encrypt certificate is a wildcard (`*.andywhv.de`) and covers
-this name; the vhost shares it like the other `andywhv.de` sites. That
-certificate is renewed **manually** (DNS-01, `authenticator = manual`), so put
-its expiry on the operator calendar or switch it to the `certbot-dns-route53`
-plugin now that Route53 access exists. Run `nginx -t` before reloading. No TLS bypass is allowed. Access logs
+Use `nginx.conf.template` for the dedicated vhost (the install script renders
+it). The name must not contain a Scopely or Marvel mark (see the API terms
+section below). A certificate for `<host>` must exist under
+`/etc/letsencrypt/live/<CERT_NAME>/` before the vhost is enabled; issue it with
+certbot (HTTP-01 through nginx, or a DNS-01 wildcard for the zone) and make
+sure its renewal reloads nginx. Run `nginx -t` before reloading. No TLS bypass is allowed. Access logs
 use `$uri`, never query strings or full requests. This vhost's nginx error log is
 disabled because error context can retain OAuth callback queries. Use sanitized
 access status, health and container status for diagnosis. Uvicorn access logging
@@ -230,10 +237,13 @@ local runtime available until explicit cutover acceptance.
 
 ## Obligations under the MSF API Terms of Use
 
-The registered Application is the public service at `https://advisor.andywhv.de`
-(title "Strike Advisor"): neither title nor URL contains a Scopely or Marvel
-mark; every page names Scopely as the source of the game data without implying
-endorsement. The implementation enforces:
+Register your instance as the Application: name = `MSF_SERVICE_NAME` (default
+"Strike Advisor"), URL = `MSF_PUBLIC_URL`, callback `https://<host>/oauth/callback`,
+privacy policy `https://<host>/privacy.html`, terms `https://<host>/terms.html`.
+Neither the name nor the host may contain a Scopely or Marvel mark (MSF, Marvel,
+Strike Force, Scopely); the configuration refuses such values. Every page names
+Scopely as the source of the game data without implying endorsement. The
+implementation enforces:
 
 - **30-day TTL on Data**: a player's snapshot older than 30 days is deleted on
   access and tools ask for `refresh_data`; snapshots are never written to

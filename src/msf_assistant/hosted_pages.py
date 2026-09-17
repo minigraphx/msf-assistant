@@ -10,6 +10,26 @@ from dataclasses import dataclass
 from html import escape
 
 LAST_UPDATED = "17 September 2026"
+DEFAULT_SERVICE_NAME = "Strike Advisor"
+MAX_SERVICE_NAME = 60
+# MSF API Terms of Use §2k: no Scopely or licensor marks in the Application's
+# title or URL. Checked case-insensitively on the configured name and hostname.
+PROTECTED_MARKS = ("msf", "marvel", "strike force", "strikeforce", "scopely")
+
+
+def service_name_from_env(env) -> str:
+    name = " ".join((env.get("MSF_SERVICE_NAME") or DEFAULT_SERVICE_NAME).split())
+    if not name or len(name) > MAX_SERVICE_NAME or contains_protected_mark(name):
+        raise ValueError(
+            "The service name must be 1-60 characters and must not contain a Scopely or "
+            "Marvel mark (MSF, Marvel, Strike Force, Scopely) per the MSF API Terms of Use"
+        )
+    return name
+
+
+def contains_protected_mark(value: str) -> bool:
+    lowered = value.lower().replace("-", " ").replace("_", " ")
+    return any(mark in lowered for mark in PROTECTED_MARKS)
 
 
 @dataclass(frozen=True)
@@ -40,11 +60,12 @@ def _operator_block(operator: Operator | None, role: str) -> str:
     )
 
 
-def privacy_body(operator: Operator | None, public_url: str) -> str:
+def privacy_body(operator: Operator | None, public_url: str, service_name: str) -> str:
     host = escape(public_url)
+    name = escape(service_name)
     return (
         "<h1>Privacy Notice</h1>"
-        f"<p>Last updated: {LAST_UPDATED}. This notice applies to the Strike Advisor operated "
+        f"<p>Last updated: {LAST_UPDATED}. This notice applies to {name}, operated "
         f"at {host}.</p>"
         "<h2>1. Controller</h2>"
         + _operator_block(operator, "Responsible for data processing")
@@ -127,11 +148,12 @@ def privacy_body(operator: Operator | None, public_url: str) -> str:
     )
 
 
-def terms_body(operator: Operator | None, public_url: str) -> str:
+def terms_body(operator: Operator | None, public_url: str, service_name: str) -> str:
     host = escape(public_url)
+    name = escape(service_name)
     return (
         "<h1>Terms of Service</h1>"
-        f"<p>Last updated: {LAST_UPDATED}. These terms govern the use of the Strike Advisor "
+        f"<p>Last updated: {LAST_UPDATED}. These terms govern the use of {name} "
         f"at {host}.</p>"
         "<h2>1. Provider and nature of the service</h2>"
         + _operator_block(operator, "Provider")

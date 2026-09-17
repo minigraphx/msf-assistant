@@ -5,37 +5,14 @@ Chat-Oberfläche. Anmeldung und Aktualisierung benötigen macOS wegen des
 Schlüsselbunds; reine Abfragen gespeicherter Daten funktionieren auch auf
 anderen Betriebssystemen mit Python 3.12+.
 
-## Nächste Ausbaustufe: eigener Webserver
+## Gehosteter Mehrspielerbetrieb
 
-Die lokale Version ist abgenommen; das Gesamtprojekt bleibt offen. Als Nächstes
-soll der MCP auf dem Webserver des Nutzers laufen und unabhängig vom Mac
-erreichbar sein. Der Nutzer hat **mehrere Spieler und mehrere Clients** als
-Zielumfang bestätigt. Als Ziel ist der bestehende kleine Server über den
-SSH-Alias `webserver` vorgesehen. Nach lokaler Entsperrung des SSH-Schlüssels
-wurde der Server am 15. September 2026 ausschließlich lesend geprüft. Docker
-und nginx sind bereits installiert. Die gemessene Speicherreserve ist knapp;
-der Betriebssystem-Wartungsstatus muss vor dem produktiven Ausbau geklärt werden.
-Ergebnisse und Betriebsoptionen stehen in der
-[Serverprüfung](server-readiness.md). Als Clients sind **ChatGPT und Claude**
-bestätigt; **jeder Spieler darf sich selbst anmelden**.
-Auf ausdrücklichen Nutzerwunsch wurden anschließend die drei LibreChat-Container
-entfernt; ihre gespeicherten Daten bleiben erhalten. Danach waren rund 514 MiB
-RAM verfügbar. Der MSF Assistant wurde noch nicht auf dem Server installiert.
-Die ergänzende Laufwerksprüfung zeigt rund 28 GiB frei auf dem separaten
-`/var`-Laufwerk. Dort liegt Docker bereits; für die dauerhaften MSF-Daten ist
-`/var/lib/msf-assistant` vorgesehen.
-Die bestehende CLI bietet ausschließlich stdio, und Login/Refresh nutzen
-den macOS-Schlüsselbund. Für den Umzug müssen daher Verbindungsweg,
-Zugriffsschutz, plattformgeeignete Token-Speicherung und dauerhafter Betrieb
-festgelegt werden. Jeder Spieler benötigt eine eigene MSF-Anmeldung sowie
-getrennte Spielerdaten und Beratungskontexte. Mehrere zugelassene Clients eines
-Spielers sollen denselben persönlichen Kontext nutzen können. Die Zuordnung muss
-aus der authentifizierten Identität erfolgen; frei übergebene Spielerkennungen
-dürfen keinen Zugriff auf fremde Daten ermöglichen. Die Abnahme muss mindestens
-zwei getrennte Testspieler und zwei Clients einschließlich unzulässiger
-Zugriffsversuche abdecken. Die konkrete Technik ist noch nicht festgelegt.
-Die aktuelle lokale Verbindung bleibt bis zu einer erfolgreichen Serverprobe
-in Betrieb. Die Ausbaustufe wird in MIN-118 verfolgt.
+Die gehostete Variante läuft als HTTPS-Dienst auf einem eigenen Server:
+mehrere Spieler mit eigener MSF-Anmeldung, getrennten Spielerdaten und
+Beratungskontexten; mehrere Clients (ChatGPT, Claude) desselben Spielers teilen
+dessen Kontext. Betrieb, Konfiguration und Abnahme sind in
+[server-operations.md](server-operations.md) und
+[hosted-acceptance.md](hosted-acceptance.md) beschrieben (englisch).
 
 ## Lokaler MCP-Host
 

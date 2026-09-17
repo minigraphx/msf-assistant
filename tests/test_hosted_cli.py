@@ -20,7 +20,7 @@ def config_env(tmp_path):
         "MSF_HOSTED_KEY_FILE": str(key),
         "MSF_CLIENT_SECRET_FILE": str(secret),
         "MSF_CLIENT_ID": "synthetic",
-        "MSF_PUBLIC_URL": "https://msf.example",
+        "MSF_PUBLIC_URL": "https://advisor.example",
         "MSF_OPERATOR_NAME": "Synthetic Operator",
         "MSF_OPERATOR_ADDRESS": "Somewhere 1, 8000 Zürich",
         "MSF_OPERATOR_EMAIL": "operator@example.invalid",
@@ -30,13 +30,13 @@ def config_env(tmp_path):
 @pytest.mark.parametrize(
     "url",
     [
-        "http://msf.example",
-        "https://msf.example/path",
-        "https://user@msf.example",
-        "https://msf.example?x=1",
-        "https://msf.example/#bad",
-        "https://msf.example:443",
-        "https://msf.example:8443",
+        "http://advisor.example",
+        "https://advisor.example/path",
+        "https://user@advisor.example",
+        "https://advisor.example?x=1",
+        "https://advisor.example/#bad",
+        "https://advisor.example:443",
+        "https://advisor.example:8443",
     ],
 )
 def test_invalid_public_origin(tmp_path, url):
@@ -56,7 +56,7 @@ def test_wrong_mount_and_unsafe_secret(tmp_path, monkeypatch):
         HostedConfig.from_env(env)
     monkeypatch.setattr(os.path, "ismount", lambda p: True)
     config = HostedConfig.from_env(env)
-    assert config.settings.redirect_uri == "https://msf.example/oauth/callback"
+    assert config.settings.redirect_uri == "https://advisor.example/oauth/callback"
     assert config.settings.client_secret == "synthetic"
     (tmp_path / "secret").chmod(0o644)
     with pytest.raises(ValueError, match="secret"):
@@ -274,3 +274,30 @@ def test_hosted_after_local_options_gets_a_hint_not_a_local_error(capsys):
 
     assert main(["--env-file", "x", "hosted", "serve"]) == 2
     assert "erste Argument" in capsys.readouterr().err
+
+
+def test_service_name_is_configurable_and_marks_are_refused(tmp_path, monkeypatch):
+    """MSF API Terms of Use §2k: no Scopely or licensor marks in the title or URL."""
+    from msf_assistant.hosted_cli import HostedConfig
+
+    env = config_env(tmp_path)
+    monkeypatch.setattr(os.path, "ismount", lambda p: True)
+    assert HostedConfig.from_env(env).service_name == "Strike Advisor"
+    env["MSF_SERVICE_NAME"] = "  Roster Buddy  "
+    assert HostedConfig.from_env(env).service_name == "Roster Buddy"
+    for bad in (
+        "MSF Helper",
+        "Marvel Strike Force Advisor",
+        "my msf tool",
+        "Strike-Force Bot",
+        "x" * 61,
+    ):
+        with pytest.raises(ValueError, match="service name"):
+            HostedConfig.from_env(dict(env, MSF_SERVICE_NAME=bad))
+    for url in (
+        "https://msf.example",
+        "https://marvel-tools.example",
+        "https://strikeforce.example",
+    ):
+        with pytest.raises(ValueError, match="URL must not contain"):
+            HostedConfig.from_env(dict(env, MSF_SERVICE_NAME="Roster Buddy", MSF_PUBLIC_URL=url))

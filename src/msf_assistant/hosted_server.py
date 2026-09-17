@@ -16,6 +16,7 @@ from starlette.routing import Route
 from msf_assistant.advisor_context import ContextStore
 from msf_assistant.advisor_instructions import ADVISOR_INSTRUCTIONS
 from msf_assistant.hosted_oauth import SCOPES
+from msf_assistant.hosted_pages import DEFAULT_SERVICE_NAME
 from msf_assistant.hosted_sync import HostedSync, HostedSyncError
 from msf_assistant.hosted_web import account_routes
 from msf_assistant.mcp_server import AdvisorServer, ToolMessages, register_tools
@@ -257,7 +258,15 @@ class PublicGuard:
 
 
 def create_hosted_app(
-    store, provider, identity, settings, public_url, *, limits=None, operator=None
+    store,
+    provider,
+    identity,
+    settings,
+    public_url,
+    *,
+    limits=None,
+    operator=None,
+    service_name=DEFAULT_SERVICE_NAME,
 ):
     limits = limits or HostedLimits()
     public_url = public_url.rstrip("/")
@@ -265,7 +274,7 @@ def create_hosted_app(
         raise ValueError("OAuth issuer must match the public URL")
     sync = HostedSync(store, settings, login_url=public_url + "/login")
     server = AdvisorServer(
-        "Strike Advisor",
+        service_name,
         version="0.4.0",
         instructions=ADVISOR_INSTRUCTIONS,
         log_level="WARNING",
@@ -299,7 +308,11 @@ def create_hosted_app(
     # favour of the provider's document that advertises every grantable scope.
     app.routes[:] = [r for r in app.routes if getattr(r, "path", None) != PROTECTED_RESOURCE_PATH]
     app.routes.extend(provider.auth_routes())
-    app.routes.extend(account_routes(store, provider, identity, public_url, operator=operator))
+    app.routes.extend(
+        account_routes(
+            store, provider, identity, public_url, operator=operator, service_name=service_name
+        )
+    )
     app.routes.append(Route("/health", health))
     guarded = PublicGuard(app, provider, sync, limits)
     return guarded

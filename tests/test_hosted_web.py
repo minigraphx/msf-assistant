@@ -445,3 +445,19 @@ def test_scopely_is_named_as_data_source_without_endorsement(setup):
     assert "as is" in privacy
     assert "30 days" in privacy
     assert "<title>Strike Advisor</title>" in privacy
+
+
+def test_service_name_appears_in_title_and_legal_pages(tmp_path):
+    store = HostedStore(tmp_path / "store3", Fernet.generate_key())
+    provider = HostedOAuthProvider(store, ORIGIN)
+    identity = MSFIdentity(Settings(client_id="app", client_secret="secret"))
+    operator = Operator(name="Op", address="Somewhere 1", email="op@example.invalid")
+    routes = account_routes(
+        store, provider, identity, ORIGIN, operator=operator, service_name="Roster <Buddy>"
+    )
+    with TestClient(Starlette(routes=routes), base_url=ORIGIN) as browser:
+        for path in ("/", "/privacy.html", "/terms.html"):
+            text = browser.get(path).text
+            assert "<title>Roster &lt;Buddy&gt;</title>" in text, path
+            assert "Strike Advisor" not in text, path
+        assert "<h1>Roster &lt;Buddy&gt;</h1>" in browser.get("/").text

@@ -9,6 +9,7 @@ import logging
 import secrets
 import shutil
 import time
+from functools import partial
 from html import escape
 from urllib.parse import parse_qsl, urlsplit
 
@@ -18,9 +19,10 @@ from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.routing import Route
 
 from msf_assistant.config import DEFAULT_OAUTH_BASE_URL
-from msf_assistant.hosted_pages import Operator, privacy_body, terms_body
+from msf_assistant.hosted_pages import DEFAULT_SERVICE_NAME, Operator, privacy_body, terms_body
 
 __all__ = ["Operator", "account_routes", "page"]
+
 
 logger = logging.getLogger("msf_assistant.hosted")
 # MSF API Terms of Use §2k: name Scopely as the source of the Data on every page,
@@ -51,11 +53,13 @@ def digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def page(body, status=200, *, form_origins=""):
+def module_page(body, status=200, *, form_origins="", title=DEFAULT_SERVICE_NAME):
     form_policy = "form-action 'self'" + (" " + form_origins if form_origins else "")
     return HTMLResponse(
         '<!doctype html><html lang="en"><meta charset="utf-8">'
-        "<title>Strike Advisor</title><body>"
+        "<title>"
+        + escape(title)
+        + "</title><body>"
         + body
         + ATTRIBUTION
         + '<p><a href="/">Help</a> · <a href="/privacy.html">Privacy</a> · '
@@ -70,6 +74,9 @@ def page(body, status=200, *, form_origins=""):
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+page = module_page
 
 
 def redirect(url):
@@ -159,7 +166,10 @@ class BrowserSessions:
         return state
 
 
-def account_routes(store, provider, identity, public_url, *, operator=None):
+def account_routes(
+    store, provider, identity, public_url, *, operator=None, service_name=DEFAULT_SERVICE_NAME
+):
+    page = partial(module_page, title=service_name)
     public_url = public_url.rstrip("/")
     if public_url != provider.public_url:
         raise ValueError("Public origins must match")
@@ -206,7 +216,9 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
 
     async def home(request):
         return page(
-            "<h1>Strike Advisor</h1><p>Connect your own Marvel Strike Force account to "
+            "<h1>"
+            + escape(service_name)
+            + "</h1><p>Connect your own Marvel Strike Force account to "
             "your AI assistant. Every player signs in directly with MSF; no separate "
             "password is needed.</p><p>Once connected, you can refresh your data from "
             "inside the assistant. Signing in does not start a full "
@@ -232,10 +244,10 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
         )
 
     async def privacy(request):
-        return page(privacy_body(operator, public_url))
+        return page(privacy_body(operator, public_url, service_name))
 
     async def terms(request):
-        return page(terms_body(operator, public_url))
+        return page(terms_body(operator, public_url, service_name))
 
     async def login(request):
         if request.method == "POST":
