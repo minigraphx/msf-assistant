@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -11,8 +12,6 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import Tool as MCPTool
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
-
-from dataclasses import dataclass
 
 from msf_assistant.advisor_context import ContextError, ContextStore
 from msf_assistant.advisor_instructions import ADVISOR_INSTRUCTIONS
