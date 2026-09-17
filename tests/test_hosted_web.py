@@ -461,3 +461,33 @@ def test_service_name_appears_in_title_and_legal_pages(tmp_path):
             assert "<title>Roster &lt;Buddy&gt;</title>" in text, path
             assert "Strike Advisor" not in text, path
         assert "<h1>Roster &lt;Buddy&gt;</h1>" in browser.get("/").text
+
+
+def test_failed_checks_log_their_constant_reason(setup, caplog):
+    """Operators must see which validation refused a browser request, never its inputs."""
+    import logging
+
+    _, _, _, browser = setup
+    with caplog.at_level(logging.WARNING, logger="msf_assistant.hosted"):
+        no_cookie = browser.post("/login", data={"csrf": "x"})
+        browser.cookies.clear()
+        page = browser.get("/login")
+        no_origin = browser.post("/login", data={"csrf": csrf(page)})
+        bad_csrf = browser.post(
+            "/login", data={"csrf": "forged-secret-value"}, headers={"Origin": ORIGIN}
+        )
+    assert no_cookie.status_code == no_origin.status_code == bad_csrf.status_code == 400
+    messages = [r.getMessage() for r in caplog.records]
+    assert "/login failed: FlowError: Missing session" in messages
+    assert "/login failed: FlowError: Wrong origin" in messages
+    assert "/login failed: FlowError: Invalid CSRF" in messages
+    assert all("forged-secret-value" not in m for m in messages)
+
+
+def test_pages_keep_the_origin_header_on_same_origin_posts(setup):
+    """Referrer-Policy no-referrer makes browsers send `Origin: null` on form posts,
+    which the CSRF origin check would refuse; same-origin still hides the referrer
+    from Scopely and the AI clients after the redirects."""
+    _, _, _, browser = setup
+    for path in ("/", "/login", "/privacy.html"):
+        assert browser.get(path).headers["referrer-policy"] == "same-origin", path
