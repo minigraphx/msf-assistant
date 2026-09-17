@@ -255,7 +255,13 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
         return hosted_main(argv[1:])
-    args = _parser().parse_args(argv)
+    parser = _parser()
+    args, extra = parser.parse_known_args(argv)
+    if args.command == "hosted":
+        print("'hosted' muss das erste Argument sein (ohne --env-file).", file=sys.stderr)
+        return 2
+    if extra:
+        parser.error("unrecognized arguments: " + " ".join(extra))
     try:
         if args.command in ("login", "sync", "logout"):
             with operation_lock(Path(args.env_file)):

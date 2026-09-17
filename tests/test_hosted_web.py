@@ -12,7 +12,7 @@ from msf_assistant.config import Settings
 from msf_assistant.hosted_identity import MSFIdentity
 from msf_assistant.hosted_oauth import HostedOAuthProvider
 from msf_assistant.hosted_store import HostedStore
-from msf_assistant.hosted_web import account_routes
+from msf_assistant.hosted_web import Operator, account_routes
 
 ORIGIN = "https://assistant.example"
 
@@ -31,7 +31,10 @@ def setup(tmp_path):
     identity.oauth.session.get.return_value.status_code = 200
     identity.oauth.session.post.return_value.json.return_value = {"access_token": "private-token"}
     identity.oauth.session.get.return_value.json.return_value = {"sub": "alice"}
-    app = Starlette(routes=account_routes(store, provider, identity, ORIGIN))
+    operator = Operator(
+        name="Max <Muster>", address="Musterweg 1, 8000 Zürich", email="max@example.invalid"
+    )
+    app = Starlette(routes=account_routes(store, provider, identity, ORIGIN, operator=operator))
     with TestClient(app, base_url=ORIGIN, follow_redirects=False) as browser:
         yield store, provider, identity, browser
 
@@ -152,7 +155,7 @@ def test_two_players_two_clients_and_html_escaping(setup):
         page = browser.get(target)
         assert page.status_code == 200
         assert "<script>" not in page.text
-        assert "Eigene Spieldaten" in page.text
+        assert "Read your own game data" in page.text
         assert (
             "form-action 'self' https://chatgpt.com https://claude.ai;"
             in (page.headers["content-security-policy"])
@@ -330,6 +333,8 @@ def test_selected_callback_identifies_each_opaque_client_grant(setup):
         page = browser.get(target)
         assert label in page.text
         assert "Misleading Other Service" not in page.text
+        # The consent page names the MSF account being connected (subject "alice").
+        assert "Connected MSF account: <code>alice…</code>" in page.text
         assert (
             browser.post(target, data={"csrf": csrf(page)}, headers={"Origin": ORIGIN}).status_code
             == 303
@@ -337,8 +342,8 @@ def test_selected_callback_identifies_each_opaque_client_grant(setup):
     page = browser.get("/account")
     assert "Claude (claude.ai)" in page.text and "ChatGPT (chatgpt.com)" in page.text
     assert "msf:read" not in page.text and "msf:write" not in page.text
-    assert "Eigene Spieldaten und Kontext lesen" in page.text
-    assert "Eigenen Spielkontext ändern und Daten aktualisieren" in page.text
+    assert "Read your own game data and advisor context" in page.text
+    assert "Change your own advisor context and refresh your data" in page.text
     alice = store.player("https://hydra-public.prod.m3.scopelypv.com/", "alice")
     grants = asyncio.run(provider.list_grants(alice.id))
     claude = next(g for g in grants if g["callback_origin"] == "https://claude.ai")
@@ -355,7 +360,7 @@ def test_selected_callback_identifies_each_opaque_client_grant(setup):
     with store.transaction() as db:
         db.execute("UPDATE oauth_grants SET callback_origin=NULL WHERE player=?", (alice.id,))
     page = browser.get("/account")
-    assert "Unbekannte Verbindung (ältere Freigabe)" in page.text
+    assert "Unknown connection (older grant)" in page.text
     assert "ChatGPT (chatgpt.com)" not in page.text
 
 
@@ -367,5 +372,92 @@ def test_home_explains_configured_connector_url_and_clients(setup):
     assert "developers.openai.com/plugins/deploy/connect-chatgpt" in text
     assert "claude.com/docs/connectors/custom/remote-mcp" in text
     # Claude's dialog defaults to published identity (CIMD), which is unsupported.
-    assert "Automatisch registrieren" in text
+    assert "Register automatically" in text
     assert 'href="/privacy.html"' in text
+
+
+def test_privacy_and_terms_name_the_operator_and_are_linked(setup):
+    _, _, _, browser = setup
+    privacy = browser.get("/privacy.html")
+    assert privacy.status_code == 200
+    for expected in (
+        "Responsible for data processing",
+        "Max &lt;Muster&gt;",
+        "Musterweg 1, 8000 Zürich",
+        "max@example.invalid",
+        "Scopely",
+        "ChatGPT",
+        "Claude",
+        "right of access",
+        "__Host-msf_session",
+    ):
+        assert expected in privacy.text, expected
+    assert "<Muster>" not in privacy.text
+    terms = browser.get("/terms.html")
+    assert terms.status_code == 200
+    for expected in (
+        "Terms of Service",
+        "Max &lt;Muster&gt;",
+        "Scopely",
+        "only your own MSF account",
+        "without warranty",
+        "Swiss law applies",
+    ):
+        assert expected in terms.text, expected
+    for path in ("/", "/privacy.html", "/terms.html"):
+        text = browser.get(path).text
+        assert 'href="/privacy.html"' in text and 'href="/terms.html"' in text, path
+
+
+def test_pages_without_operator_say_so_instead_of_inventing_details(tmp_path):
+    store = HostedStore(tmp_path / "store2", Fernet.generate_key())
+    provider = HostedOAuthProvider(store, ORIGIN)
+    identity = MSFIdentity(Settings(client_id="app", client_secret="secret"))
+    app = Starlette(routes=account_routes(store, provider, identity, ORIGIN))
+    with TestClient(app, base_url=ORIGIN) as browser:
+        text = browser.get("/privacy.html").text
+        assert "not configured" in text
+
+
+def test_failures_log_only_route_and_exception_class(setup, caplog):
+    import logging
+
+    _, _, _, browser = setup
+    with caplog.at_level(logging.WARNING, logger="msf_assistant.hosted"):
+        response = browser.post(
+            "/account/delete",
+            data={"csrf": "forged-secret-value", "confirm": "delete"},
+            headers={"Origin": ORIGIN},
+        )
+    assert response.status_code == 400
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("/account/delete" in m and "Error" in m for m in messages), messages
+    assert all("forged-secret-value" not in m for m in messages)
+
+
+def test_scopely_is_named_as_data_source_without_endorsement(setup):
+    _, _, _, browser = setup
+    for path in ("/", "/privacy.html", "/terms.html"):
+        text = browser.get(path).text
+        assert "provided by Scopely" in text, path
+        assert "not endorsed by" in text, path
+    privacy = browser.get("/privacy.html").text
+    assert "as is" in privacy
+    assert "30 days" in privacy
+    assert "<title>Strike Advisor</title>" in privacy
+
+
+def test_service_name_appears_in_title_and_legal_pages(tmp_path):
+    store = HostedStore(tmp_path / "store3", Fernet.generate_key())
+    provider = HostedOAuthProvider(store, ORIGIN)
+    identity = MSFIdentity(Settings(client_id="app", client_secret="secret"))
+    operator = Operator(name="Op", address="Somewhere 1", email="op@example.invalid")
+    routes = account_routes(
+        store, provider, identity, ORIGIN, operator=operator, service_name="Roster <Buddy>"
+    )
+    with TestClient(Starlette(routes=routes), base_url=ORIGIN) as browser:
+        for path in ("/", "/privacy.html", "/terms.html"):
+            text = browser.get(path).text
+            assert "<title>Roster &lt;Buddy&gt;</title>" in text, path
+            assert "Strike Advisor" not in text, path
+        assert "<h1>Roster &lt;Buddy&gt;</h1>" in browser.get("/").text

@@ -287,6 +287,9 @@ def test_sdk_http_routes_public_metadata_token_resource_and_rotation(env, refres
             assert response.json()["error"] == "invalid_target"
             assert run(provider.load_authorization_code(app, raw)) is not None
         data["resource"] = "https://msf.example/mcp"
+        wrong = http.post("/token", data=data | {"code_verifier": "y" * 43})
+        assert wrong.status_code == 400 and wrong.json()["error"] == "invalid_grant"
+        assert run(provider.load_authorization_code(app, raw)) is not None
         response = http.post("/token", data=data)
         assert response.status_code == 200, response.text
         refresh = response.json()["refresh_token"]
@@ -555,3 +558,17 @@ def test_grant_origin_migration_preserves_legacy_grant_without_guessing(env):
     assert len(grants) == 1
     assert grants[0]["callback_origin"] is None
     assert run(reopened.load_access_token(tokens.access_token)).subject == alice.id
+
+
+def test_revoked_client_can_reauthorize_until_its_grants_expire(env):
+    """A player who revokes a connection and reconnects the same client must not
+    hit unauthorized_client just because the 24 h registration window passed."""
+    provider, store, _, now = env
+    player, tokens, app = tokens_for(provider, store)
+    run(provider.revoke_player(player.id))
+    assert run(provider.load_access_token(tokens.access_token)) is None
+    now[0] += provider.CLIENT_TTL + 3600
+    assert run(provider.get_client(app.client_id)) is not None
+    assert run(provider.authorize(app, params())).startswith("https://")
+    now[0] += provider.FAMILY_TTL
+    assert run(provider.get_client(app.client_id)) is None

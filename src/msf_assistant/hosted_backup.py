@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 import tarfile
 import tempfile
+import time
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -15,6 +16,11 @@ from uuid import UUID, uuid4
 from msf_assistant.hosted_store import HostedStore
 
 MARKER = "RESTORE_MAINTENANCE"
+# Game data fetched from the MSF API is subject to a 30-day TTL and immediate
+# deletion on request (API Terms of Use). It is re-fetchable, so it never enters
+# an archive; legacy archives that contain it are restored without it.
+GAME_DATA_FILE = "snapshot.json"
+MAX_ARCHIVE_AGE_DAYS = 30
 # Atomic writers (cli.write_snapshot, ContextStore) stage ".msf-*" files next to
 # their target before os.replace; a crash leaves them behind. Under the exclusive
 # maintenance lock none can be in flight, so they are skipped rather than fatal.
@@ -45,10 +51,14 @@ def _allowed(name):
     raise ValueError("Unexpected backup member")
 
 
-def backup(store: HostedStore, directory: Path, *, retention: int = 7) -> Path:
+def backup(
+    store: HostedStore, directory: Path, *, retention: int = 7, max_age_days: int = 30
+) -> Path:
     """Hold exclusive maintenance until both SQLite and player files are archived."""
     if not 1 <= retention <= 30:
         raise ValueError("Retention must be between 1 and 30")
+    if not 1 <= max_age_days <= MAX_ARCHIVE_AGE_DAYS:
+        raise ValueError(f"Archive age must be between 1 and {MAX_ARCHIVE_AGE_DAYS} days")
     directory = Path(os.path.abspath(directory))
     if directory == store.root or store.root in directory.parents:
         raise ValueError("Backups must be outside the data root")
@@ -72,7 +82,7 @@ def backup(store: HostedStore, directory: Path, *, retention: int = 7) -> Path:
             for player in (store.root / "players").iterdir():
                 store._check(player, directory=True)
                 for item in player.iterdir():
-                    if item.name == ".context.json.lock" or item.name.startswith(
+                    if item.name in (".context.json.lock", GAME_DATA_FILE) or item.name.startswith(
                         STALE_WRITER_PREFIX
                     ):
                         store._file(item)
@@ -101,9 +111,11 @@ def backup(store: HostedStore, directory: Path, *, retention: int = 7) -> Path:
             os.link(archive, output)  # Exclusive publication; never overwrite an archive.
             archive.unlink()
             archives = sorted(directory.glob("backup-*.tar"), key=lambda p: p.stat().st_mtime_ns)
-            for old in archives[:-retention]:
-                store._file(old)
-                old.unlink()
+            oldest_allowed = time.time() - max_age_days * 86400
+            for old in archives:
+                if old in archives[:-retention] or old.stat().st_mtime < oldest_allowed:
+                    store._file(old)
+                    old.unlink()
     return output
 
 
@@ -188,6 +200,8 @@ def restore(archive: Path, destination: Path, key: bytes, *, maintenance=False) 
                 ):
                     raise ValueError("Unsafe or oversized backup member")
                 seen.add(member.name)
+                if member.name.endswith("/" + GAME_DATA_FILE):
+                    continue  # legacy archive: game data is re-fetched, never restored
                 output = destination / member.name
                 if member.name.startswith("players/"):
                     (destination / "players").mkdir(exist_ok=True, mode=0o700)

@@ -1,6 +1,7 @@
 """Authenticated stateless HTTP transport with bounded request admission."""
 
 import json
+import logging
 import time
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -15,12 +16,42 @@ from starlette.routing import Route
 from msf_assistant.advisor_context import ContextStore
 from msf_assistant.advisor_instructions import ADVISOR_INSTRUCTIONS
 from msf_assistant.hosted_oauth import SCOPES
-from msf_assistant.hosted_sync import HostedSync
+from msf_assistant.hosted_pages import DEFAULT_SERVICE_NAME
+from msf_assistant.hosted_sync import HostedSync, HostedSyncError
 from msf_assistant.hosted_web import account_routes
-from msf_assistant.mcp_server import AdvisorServer, register_tools
-from msf_assistant.snapshot import SnapshotReader
+from msf_assistant.mcp_server import AdvisorServer, ToolMessages, register_tools
+from msf_assistant.snapshot import SnapshotError, SnapshotReader
 
+logger = logging.getLogger("msf_assistant.hosted")
 _player: ContextVar[str] = ContextVar("hosted_player")
+HOSTED_MESSAGES = ToolMessages(
+    read_failed="Your game data could not be read; run refresh_data.",
+    refresh_failed="Refresh failed; try again later. Your previous data is retained.",
+    passthrough=HostedSyncError,
+)
+MISSING_SNAPSHOT = (
+    "No game data stored for this account yet; run refresh_data to fetch it from MSF."
+)
+# MSF API Terms of Use: Data pulled from the API is retained at most 30 days.
+SNAPSHOT_TTL_SECONDS = 30 * 86400
+EXPIRED_SNAPSHOT = (
+    "The stored game data expired after 30 days and was deleted; run refresh_data to fetch "
+    "it again from MSF."
+)
+
+
+def expire_snapshot(path, *, now=None):
+    """Delete a snapshot older than the TTL; return True when it was removed."""
+    try:
+        age = (now or time.time()) - path.stat().st_mtime
+    except FileNotFoundError:
+        return False
+    if age <= SNAPSHOT_TTL_SECONDS:
+        return False
+    path.unlink(missing_ok=True)
+    return True
+
+
 PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource/mcp"
 WRITE_TOOLS = frozenset(
     {
@@ -55,6 +86,12 @@ class PlayerBackend:
             player_id = _player.get()
             with self.store.player_lock(player_id):
                 directory = self.store.player_dir(player_id)
+                if self.kind == "snapshot":
+                    expired = expire_snapshot(directory / "snapshot.json")
+                    if name != "status" and expired:
+                        raise SnapshotError(EXPIRED_SNAPSHOT)
+                    if name != "status" and not (directory / "snapshot.json").exists():
+                        raise SnapshotError(MISSING_SNAPSHOT)
                 backend = (
                     SnapshotReader(directory / "snapshot.json")
                     if self.kind == "snapshot"
@@ -96,7 +133,8 @@ class PublicGuard:
 
         try:
             await self.request(scope, receive, track_send)
-        except Exception:
+        except Exception as exc:
+            logger.warning("%s failed: %s", scope.get("path"), type(exc).__name__)
             if not started:
                 await JSONResponse({"error": "Service temporarily unavailable"}, status_code=503)(
                     scope, receive, send
@@ -206,7 +244,8 @@ class PublicGuard:
 
         try:
             await self.app(scope, replay, bounded_send)
-        except Exception:
+        except Exception as exc:
+            logger.warning("%s failed: %s", scope.get("path"), type(exc).__name__)
             await reject(503, "Service temporarily unavailable")
         else:
             for message in messages:
@@ -218,14 +257,24 @@ class PublicGuard:
                 self.sync.capacity.release()
 
 
-def create_hosted_app(store, provider, identity, settings, public_url, *, limits=None):
+def create_hosted_app(
+    store,
+    provider,
+    identity,
+    settings,
+    public_url,
+    *,
+    limits=None,
+    operator=None,
+    service_name=DEFAULT_SERVICE_NAME,
+):
     limits = limits or HostedLimits()
     public_url = public_url.rstrip("/")
     if public_url != provider.public_url:
         raise ValueError("OAuth issuer must match the public URL")
-    sync = HostedSync(store, settings)
+    sync = HostedSync(store, settings, login_url=public_url + "/login")
     server = AdvisorServer(
-        "MSF Assistant",
+        service_name,
         version="0.4.0",
         instructions=ADVISOR_INSTRUCTIONS,
         log_level="WARNING",
@@ -242,6 +291,7 @@ def create_hosted_app(store, provider, identity, settings, public_url, *, limits
         PlayerBackend(store, "snapshot", limits),
         PlayerBackend(store, "context", limits),
         refresh=lambda: sync.refresh(_player.get(), admitted=True),
+        messages=HOSTED_MESSAGES,
     )
     app = server.streamable_http_app(
         stateless_http=True,
@@ -258,7 +308,11 @@ def create_hosted_app(store, provider, identity, settings, public_url, *, limits
     # favour of the provider's document that advertises every grantable scope.
     app.routes[:] = [r for r in app.routes if getattr(r, "path", None) != PROTECTED_RESOURCE_PATH]
     app.routes.extend(provider.auth_routes())
-    app.routes.extend(account_routes(store, provider, identity, public_url))
+    app.routes.extend(
+        account_routes(
+            store, provider, identity, public_url, operator=operator, service_name=service_name
+        )
+    )
     app.routes.append(Route("/health", health))
     guarded = PublicGuard(app, provider, sync, limits)
     return guarded

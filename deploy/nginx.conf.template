@@ -1,0 +1,70 @@
+# nginx vhost template. install-host.sh renders __HOST__ (from MSF_PUBLIC_URL)
+# and __CERT_NAME__ (CERT_NAME, default: the host) and installs the result as
+# /etc/nginx/sites-available/<host> with a sites-enabled symlink.
+# Never use $request or $request_uri in logs: OAuth callback queries carry secrets.
+log_format msf_safe '$remote_addr [$time_local] "$request_method $uri $server_protocol" '
+                    '$status $body_bytes_sent';
+# Per-IP limits for the unauthenticated surface. The application limits
+# authenticated players; these zones stop one address from filling the bounded
+# registration/login capacity or the SQLite file with client metadata.
+limit_req_zone $binary_remote_addr zone=msf_register:1m rate=6r/m;
+limit_req_zone $binary_remote_addr zone=msf_auth:1m rate=30r/m;
+limit_req_zone $binary_remote_addr zone=msf_mcp:1m rate=120r/m;
+limit_req_status 429;
+# The certificate must already exist under /etc/letsencrypt/live/__CERT_NAME__
+# (e.g. `certbot certonly --nginx -d __HOST__`, or a wildcard for the zone).
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __HOST__;
+    access_log /var/log/nginx/msf-access.log msf_safe;
+    error_log /dev/null crit;
+    return 308 https://__HOST__$uri;
+}
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name __HOST__;
+    ssl_certificate /etc/letsencrypt/live/__CERT_NAME__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__CERT_NAME__/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    access_log /var/log/nginx/msf-access.log msf_safe;
+    # nginx error context can include full query strings, even at crit severity.
+    # Keep this vhost's error log disabled; use sanitized access/status + health.
+    error_log /dev/null crit;
+    client_max_body_size 1m;
+    client_body_timeout 30s;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options nosniff always;
+    # Inherited by every location below; only proxy_pass and limits differ.
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_http_version 1.1;
+    proxy_buffering off;
+    proxy_read_timeout 40s;
+    proxy_send_timeout 30s;
+
+    # Dynamic client registration and token issuance: small bodies, strict rate.
+    location ~ ^/(register|token|revoke)$ {
+        limit_req zone=msf_register burst=6 nodelay;
+        client_max_body_size 16k;
+        proxy_pass http://127.0.0.1:8000;
+    }
+    # Browser login, consent and account pages.
+    location ~ ^/(authorize|login|oauth/callback|consent|account(/.*)?)$ {
+        limit_req zone=msf_auth burst=20 nodelay;
+        client_max_body_size 16k;
+        proxy_pass http://127.0.0.1:8000;
+    }
+    # MCP: a full refresh_data can take several upstream calls of up to 30 s each.
+    location = /mcp {
+        limit_req zone=msf_mcp burst=60 nodelay;
+        proxy_read_timeout 150s;
+        proxy_pass http://127.0.0.1:8000;
+    }
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+    }
+}

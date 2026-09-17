@@ -376,6 +376,9 @@ def test_composed_app_advertises_every_scope_to_real_clients(env):
         assert prm["resource"] == "https://msf.example/mcp"
         served = http.get("/.well-known/oauth-authorization-server").json()
         assert served["scopes_supported"] == SCOPES
+        # RFC 9728 entries are issuer identifiers; they must equal the issuer
+        # byte for byte (no trailing slash) for strict clients.
+        assert prm["authorization_servers"] == [served["issuer"]] == ["https://msf.example"]
         assert [
             r.path for r in app.app.routes if r.path == "/.well-known/oauth-protected-resource/mcp"
         ] == ["/.well-known/oauth-protected-resource/mcp"]
@@ -490,3 +493,59 @@ def test_response_size_cap_returns_safe_error(env):
         assert response.status_code == 503
         assert len(response.content) < 100
         assert app.active == 0
+
+
+def test_hosted_tool_errors_never_mention_local_cli_commands(env, monkeypatch):
+    from msf_assistant.hosted_sync import HostedSyncError
+
+    app, store, provider, alice, a, bob, b = env
+    with TestClient(app, base_url="https://msf.example") as http:
+        # Alice has no snapshot yet: the advice must be refresh_data, not "run login".
+        profile = rpc(http, a.access_token, "tools/call", {"name": "get_player_profile"})
+        assert profile.status_code == 200 and profile.json()["result"]["isError"]
+        assert "refresh_data" in profile.text
+        for forbidden in ("run login", "sync --characters", "Lokal", "lokal", "local"):
+            assert forbidden not in profile.text, forbidden
+        monkeypatch.setattr(
+            app.sync,
+            "refresh",
+            lambda *a, **k: (_ for _ in ()).throw(
+                HostedSyncError("MSF-Anmeldung abgelaufen: https://msf.example/login")
+            ),
+        )
+        failed = rpc(http, a.access_token, "tools/call", {"name": "refresh_data"})
+        assert failed.status_code == 200
+        assert "https://msf.example/login" in failed.text
+        assert "sync --characters" not in failed.text
+
+
+def test_write_tools_match_registered_annotations():
+    """WRITE_TOOLS gates the write scope; it must equal the tools that declare writes."""
+    from msf_assistant import hosted_server
+    from msf_assistant.mcp_server import AdvisorServer, register_tools
+
+    server = AdvisorServer("t", version="0", instructions="", log_level="WARNING")
+    register_tools(server, object(), object(), refresh=lambda: None)
+    tools = asyncio.run(server.list_tools())
+    writes = {t.name for t in tools if not t.annotations.read_only_hint}
+    assert writes == set(hosted_server.WRITE_TOOLS)
+
+
+def test_snapshots_expire_after_thirty_days(env):
+    """MSF API terms require a 30-day TTL on Data pulled from the API."""
+    import os
+    import time
+
+    app, store, provider, alice, a, bob, b = env
+    path = store.player_dir(alice.id) / "snapshot.json"
+    path.write_text('{"retrieved_at": "old"}')
+    path.chmod(0o600)
+    old = time.time() - 31 * 86400
+    os.utime(path, (old, old))
+    with TestClient(app, base_url="https://msf.example") as http:
+        profile = rpc(http, a.access_token, "tools/call", {"name": "get_player_profile"})
+        assert profile.json()["result"]["isError"]
+        assert "expired" in profile.text and "refresh_data" in profile.text
+        assert not path.exists()
+        status = rpc(http, a.access_token, "tools/call", {"name": "get_status"})
+        assert status.json()["result"]["structuredContent"]["available"] is False

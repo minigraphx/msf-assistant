@@ -102,7 +102,7 @@ def test_parallel_refresh_isolation_and_capacity(tmp_path, monkeypatch):
         jobs = [pool.submit(sync.refresh, p.id) for p in players[:2]]
         entered.wait(timeout=5)
         try:
-            with pytest.raises(hosted_sync.HostedSyncError, match="capacity"):
+            with pytest.raises(hosted_sync.HostedSyncError, match="busy"):
                 sync.refresh(players[2].id)
         finally:
             release.set()
@@ -291,3 +291,29 @@ def test_context_limit_preserves_existing_valid_file(tmp_path):
         )
     assert path.read_bytes() == previous
     assert limited.read() == original
+
+
+def test_expired_msf_credentials_point_to_the_hosted_login(tmp_path, monkeypatch):
+    import requests
+
+    from msf_assistant import hosted_sync
+
+    store = HostedStore(tmp_path / "private", Fernet.generate_key())
+    player = store.player("issuer", "alice")
+    store.save_tokens(player.id, TokenSet("old", refresh_token="stale"))
+
+    def rejected(self, token):
+        response = requests.Response()
+        response.status_code = 401
+        raise requests.HTTPError(response=response)
+
+    monkeypatch.setattr(hosted_sync.MSFOAuth2, "refresh", rejected)
+    sync = hosted_sync.HostedSync(store, Settings("test"), login_url="https://msf.example/login")
+    with pytest.raises(hosted_sync.HostedSyncError) as failure:
+        sync.refresh(player.id)
+    assert "https://msf.example/login" in str(failure.value)
+    assert "sync --characters" not in str(failure.value)
+    # A player without stored credentials gets the same actionable message.
+    other = store.player("issuer", "bob")
+    with pytest.raises(hosted_sync.HostedSyncError, match="msf.example/login"):
+        sync.refresh(other.id)

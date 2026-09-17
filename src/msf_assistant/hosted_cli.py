@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import sqlite3
 import stat
 import sys
@@ -16,6 +17,7 @@ from cryptography.fernet import Fernet
 
 from msf_assistant.config import DEFAULT_OAUTH_BASE_URL, Settings
 from msf_assistant.hosted_backup import MARKER, backup, restore, resume
+from msf_assistant.hosted_pages import Operator, contains_protected_mark, service_name_from_env
 from msf_assistant.hosted_store import HostedStore
 
 
@@ -88,6 +90,8 @@ class HostedConfig:
     public_url: str
     key: bytes = field(repr=False)
     settings: Settings = field(repr=False)
+    operator: Operator
+    service_name: str
     active_requests: int = 2
 
     @classmethod
@@ -108,6 +112,11 @@ class HostedConfig:
         ):
             raise ValueError("Public URL must be an HTTPS origin")
         public = public.rstrip("/")
+        if contains_protected_mark(parsed.hostname):
+            raise ValueError(
+                "Public URL must not contain a Scopely or Marvel mark (MSF, Marvel, Strike "
+                "Force, Scopely) per the MSF API Terms of Use"
+            )
         if env.get("MSF_OAUTH_BASE_URL", DEFAULT_OAUTH_BASE_URL) != DEFAULT_OAUTH_BASE_URL:
             raise ValueError("The official MSF issuer is required")
         root, key = storage_config(env)
@@ -125,7 +134,30 @@ class HostedConfig:
         active_requests = int(env.get("MSF_HOSTED_ACTIVE_REQUESTS", "2"))
         if not 1 <= active_requests <= 4:
             raise ValueError("Active requests must be between 1 and 4")
-        return cls(root, public, key, settings, active_requests)
+        return cls(
+            root,
+            public,
+            key,
+            settings,
+            Operator.from_env(env),
+            service_name_from_env(env),
+            active_requests,
+        )
+
+
+def delete_player(root, key, player_id):
+    """Operator deletion, identical to the account page: lock, deactivate, revoke, remove."""
+    import anyio
+
+    from msf_assistant.hosted_oauth import HostedOAuthProvider
+
+    store = HostedStore(root, key)
+    provider = HostedOAuthProvider(store, "https://operator.invalid")
+    with store.player_lock(player_id):
+        path = store.player_dir(player_id)
+        store.deactivate_player(player_id)
+        anyio.run(provider.revoke_player, player_id)
+        shutil.rmtree(path)
 
 
 def serve(config, *, host="127.0.0.1", port=8000):
@@ -146,6 +178,8 @@ def serve(config, *, host="127.0.0.1", port=8000):
         config.settings,
         config.public_url,
         limits=HostedLimits(active_requests=config.active_requests),
+        operator=config.operator,
+        service_name=config.service_name,
     )
     uvicorn.run(
         app,
@@ -170,11 +204,14 @@ def main(argv=None):
     save = commands.add_parser("backup", help="Create a coherent private backup")
     save.add_argument("directory", type=Path)
     save.add_argument("--retention", type=int, default=7)
+    save.add_argument("--max-age-days", type=int, default=30)
     recover = commands.add_parser("restore", help="Restore into a NEW root in maintenance")
     recover.add_argument("archive", type=Path)
     recover.add_argument("--maintenance", action="store_true", required=True)
     reopen = commands.add_parser("resume", help="Release restored-data maintenance")
     reopen.add_argument("--deletions-reconciled", action="store_true", required=True)
+    remove = commands.add_parser("delete-player", help="Delete one player's data and grants")
+    remove.add_argument("player_id")
     args = parser.parse_args(argv)
     try:
         if args.command == "generate-key":
@@ -188,7 +225,17 @@ def main(argv=None):
                 restore(args.archive, root, key, maintenance=args.maintenance)
                 print("Restored in maintenance. Reconcile post-backup deletions before resume.")
             elif args.command == "backup":
-                print(backup(HostedStore(root, key), args.directory, retention=args.retention))
+                print(
+                    backup(
+                        HostedStore(root, key),
+                        args.directory,
+                        retention=args.retention,
+                        max_age_days=args.max_age_days,
+                    )
+                )
+            elif args.command == "delete-player":
+                delete_player(root, key, args.player_id)
+                print("Player deleted; connections revoked.")
             else:
                 resume(HostedStore(root, key), deletions_reconciled=args.deletions_reconciled)
                 print("Restore maintenance released.")
@@ -196,7 +243,7 @@ def main(argv=None):
     except (sqlite3.Error, tarfile.TarError):
         print("Hosted operation failed: invalid backup or database", file=sys.stderr)
         return 1
-    except (ValueError, OSError) as exc:
+    except (ValueError, OSError, RuntimeError) as exc:
         # Exception details can contain paths but never credential values.
         print(f"Hosted operation failed: {exc}", file=sys.stderr)
         return 1

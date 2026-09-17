@@ -1,96 +1,90 @@
-# Persönliche MSF-Beratung
+# Personal MSF advice
 
-Der lokale Server liefert deinen Roster und speichert Ziele, relevante Angaben
-und Empfehlungen. Die angebundene KI recherchiert und formuliert die Beratung.
-Ein eigener Chatbot oder Web-Crawler läuft in diesem Paket nicht.
+The server provides your roster and stores goals, relevant player facts and
+recommendations. The connected AI does the research and writes the advice. This
+package contains no chatbot and no web crawler of its own.
 
-## Einstieg im verbundenen Gespräch
+## Getting started in a connected conversation
 
-> Prüfe meinen MSF-Datenstand und meine gespeicherten Ziele. Recherchiere die
-> entscheidenden aktuellen Quellen und schlage mir ein Hauptziel und zwei
-> Alternativen vor. Frage nur nach Angaben, die deine Entscheidung verändern.
-> Nach meiner Zielwahl erstelle einen priorisierten Ausbauplan je Charakter
-> mit aktuellem und geplantem Level sowie Ausrüstungsstufe. Plane standardmäßig
-> kostenlos und speichere mein gewähltes Ziel und den begründeten Plan.
+> Check my MSF data and my stored goals. Research the decisive current sources
+> and propose one main goal and two alternatives. Only ask for information that
+> would change your decision. After I pick a goal, create a prioritised upgrade
+> plan per character with current and target level and gear tier. Plan
+> free-to-play by default and store my chosen goal and the reasoned plan.
 
-Hosts mit MCP-Prompts können stattdessen `plan_upgrades` mit der konkreten Frage
-aufrufen. Derselbe Ablauf wird bei der Server-Initialisierung als Anweisung
-übermittelt. Ob die KI diese Anweisungen richtig anwendet, muss im gewählten Host
-an den [Abnahmefällen](advisor-acceptance.md) geprüft werden.
+Hosts that support MCP prompts can call `plan_upgrades` with the concrete
+question instead. The same workflow is delivered as instructions when the
+server initialises. Whether the AI applies these instructions correctly must be
+checked in your host against the [acceptance cases](advisor-acceptance.md).
 
-Du kannst direkt fragen, wen du als Nächstes ausbauen solltest, wie du DD8
-vorbereitest, welche Charaktere langfristig nützlich wirken oder ob sich ein
-neues Team lohnt. Für ein angeblich „neuestes“ Team muss zuerst der aktuelle
-Veröffentlichungsstand geklärt werden.
+You can ask directly whom to upgrade next, how to prepare for DD8, which
+characters look useful long-term, or whether a new team is worth it. For a
+supposedly "newest" team, the current release state has to be established first.
 
-## So sollen Antworten aussehen
+## What answers should look like
 
-Die Beratung nennt den Roster-Stand, belegt Anforderungen mit direkten Quellen
-und unterscheidet diese von Einschätzungen. Marvel.Church ist die bevorzugte
-Guide-Quelle; offizielle Ankündigungen und gegengeprüfte Erfahrungsberichte
-ergänzen sie. Alter, Widersprüche und Unsicherheit bleiben sichtbar. Ohne
-Recherche gibt es keine Zusicherung zur aktuellen Meta.
+The advice names the roster state, backs requirements with direct sources and
+separates those from assessments. Marvel.Church is the preferred guide source;
+official announcements and cross-checked community reports complement it. Age,
+contradictions and uncertainty stay visible. Without research there is no claim
+about the current meta.
 
-Nach deiner Zielwahl enthält der Plan je Charakter Team, aktuellen Level und
-Ausrüstungsstand, Ziel-Level und Ziel-Ausrüstungsstufe, Priorität und Begründung.
-Materialvorräte begrenzen das Ziel nicht. Gesperrte Charaktere, sinnvolle
-Übergangsteams und begründete Umwege werden berücksichtigt. Eine bezahlte Option
-bleibt getrennt vom kostenlosen Weg. Fehlende Angaben werden erst bei Bedarf
-erfragt; ein starker Roster beweist keinen Event-Abschluss.
+After you pick a goal, the plan lists per character: team, current level and
+gear, target level and target gear tier, priority and reasoning. Material stock
+does not cap the goal. Locked characters, sensible transition teams and reasoned
+detours are taken into account. A paid option stays separate from the free path.
+Missing information is only requested when needed; a strong roster does not
+prove an event completion.
 
-## Was dauerhaft gespeichert wird
+## What is stored permanently
 
-Standarddatei: `outputs/msf-advisor-context.json`, neben dem Snapshot. Die Datei
-ist privat, Git-ignoriert und wird vom Server mit Besitzerrechten geschrieben.
-Ein neuer Serverprozess liest sie wieder ein; ein neues Chatgespräch kann Ziele
-also wiederaufnehmen. Der Speicher gehört zu genau einem Spieler. Bei mehreren
-Konten getrennte Snapshot- und Kontextdateien verwenden.
+Default file: `outputs/msf-advisor-context.json`, next to the snapshot. The file
+is private, git-ignored and written by the server with owner-only permissions. A
+new server process reads it again, so a new chat can resume goals. The store
+belongs to exactly one player; use separate snapshot and context files for
+several accounts. (The hosted service keeps one context per verified player.)
 
-| Werkzeug | Verwendung |
+| Tool | Use |
 | --- | --- |
-| `get_advisor_context` | Ziele, Nutzerangaben, Empfehlungen und aktuelle Revision lesen |
-| `save_goal` | Vorschlag oder gewähltes Ziel anlegen und später korrigieren |
-| `save_player_fact` | Eine relevante Angabe speichern; `null` bedeutet ausdrücklich unbekannt |
-| `save_recommendation` | Zielbezug, Roster-Zeitpunkt, Quellen, Charakterplan und Unsicherheit speichern |
-| `delete_advisor_record` | Auf deinen Wunsch einen Eintrag entfernen |
+| `get_advisor_context` | read goals, player facts, recommendations and the current revision |
+| `save_goal` | create a proposal or a chosen goal and correct it later |
+| `save_player_fact` | store one relevant fact; `null` means explicitly unknown |
+| `save_recommendation` | store goal reference, roster timestamp, sources, character plan and uncertainty |
+| `delete_advisor_record` | remove an entry at your request |
 
-Ziele unterscheiden `proposed`, `selected`, `paused` und `completed`. Eine
-KI-Empfehlung wird dadurch nicht automatisch zu deiner Entscheidung. Jeder
-Eintrag erhält Herkunft und Erstellungs-/Änderungszeit; Empfehlungen behalten
-zusätzlich den verwendeten Roster-Stand und datierte Quellen.
+Goals distinguish `proposed`, `selected`, `paused` and `completed`. An AI
+recommendation does not automatically become your decision. Every entry carries
+provenance and creation/modification time; recommendations additionally keep the
+roster state used and dated sources.
 
-Bei Korrekturen verwendet die KI die vorhandene `record_id`. Jeder Schreibzugriff
-benötigt die zuletzt gelesene `expected_revision`. Hat ein anderes Gespräch
-inzwischen gespeichert, wird der veraltete Zugriff abgewiesen: neu lesen,
-Änderungen berücksichtigen und nur die gewünschte Korrektur anwenden. Ein
-referenziertes Ziel lässt sich erst nach Korrektur oder Entfernung seiner
-Empfehlungen löschen.
+For corrections the AI uses the existing `record_id`. Every write needs the last
+read `expected_revision`. If another conversation has saved in the meantime, the
+stale write is rejected: read again, take the changes into account and apply only
+the intended correction. A referenced goal can only be deleted after its
+recommendations were corrected or removed.
 
-Fehler vor dem atomaren Ersetzen lassen die bisherige Datei unverändert. Falls
-die neue Revision bereits geschrieben wurde, aber die Bestätigung auf dem
-Datenträger fehlschlägt, meldet der Server genau diese Unsicherheit samt Revision.
-Dann zuerst neu lesen; einen Anlageauftrag nicht blind wiederholen. Eine
-beschädigte Datei wird nicht still durch einen leeren Speicher ersetzt.
+Errors before the atomic replace leave the previous file untouched. If the new
+revision was written but the on-disk confirmation failed, the server reports
+exactly that uncertainty with the revision; read again first and do not blindly
+repeat a create. A corrupt file is never silently replaced by an empty store.
 
-## Betrieb
+## Operation
 
-`serve --read-only` und `mcp-config --read-only` erlauben nur Lesen. Aktualisierung,
-Speichern und Löschen werden dann nicht angeboten. Die KI muss diesen fehlenden
-Speicherzugriff offenlegen. Reine Abfragen benötigen keine Anmeldung. Kontext-Schreibzugriffe benötigen
-Unix-Dateisperren (macOS/Linux); andere Hosts können den Nur-Lesen-Modus nutzen.
+`serve --read-only` and `mcp-config --read-only` allow reading only; refresh,
+save and delete are not offered and the AI must disclose the missing write
+access. Pure queries need no login. Context writes need Unix file locks
+(macOS/Linux); other hosts can use read-only mode.
 
-Mit `--context /privater/pfad/context.json` kann der lokale Betreiber einen festen
-Speicherort setzen. Verwende einen direkten Dateipfad statt einer symbolischen
-Verknüpfung. Werkzeugaufrufe selbst können keine Pfade auswählen. Außerhalb von
-`outputs/` muss der Betreiber sicherstellen, dass die Datei privat und vom
-jeweiligen Repository ausgeschlossen bleibt.
+`--context /private/path/context.json` lets the local operator fix the storage
+location. Use a direct file path, not a symlink. Tool calls cannot choose paths.
+Outside `outputs/` the operator must keep the file private and excluded from any
+repository.
 
-Zum vollständigen Zurücksetzen den Server beenden und die Kontextdatei lokal
-sichern oder entfernen. Der Roster-Snapshot und die Anmeldung sind davon getrennt.
-Private Daten nicht nach GitHub oder Linear kopieren.
+To reset completely, stop the server and back up or remove the context file
+locally. The roster snapshot and the login are separate. Never copy private data
+into GitHub or issue trackers.
 
-Bei Nutzung prüft die KI das Datenalter und versucht bei fehlenden/veralteten
-Daten einmal einen erlaubten Refresh. Nach einem Fehler bleibt der Altstand
-gekennzeichnet. Einen täglichen Hintergrunddienst richtet das Paket nicht ein.
-Weitere Details: [Verbindung](chatgpt-connection.md) und
-[Datenabdeckung](data-coverage.md).
+During use the AI checks the data age and, for missing or stale data, tries one
+permitted refresh. After a failure the old state stays marked. The package sets
+up no daily background service. See [connecting](chatgpt-connection.md) and
+[data coverage](data-coverage.md) for details.

@@ -10,8 +10,9 @@ Einstieg und Aktualität:
 - Wenn der Snapshot fehlt oder stale ist, oder der Katalog fehlt/veraltet ist,
   nutze refresh_data einmal pro Beratungsanfrage, falls verfügbar und im Host erlaubt.
   Ein ausdrücklich gewünschter Refresh ist ebenfalls möglich. Bei Fehler nicht
-  endlos erneut versuchen: Altstand erhalten und kennzeichnen; fehlende Anmeldung
-  mit lokalem login, veraltete Daten mit sync --characters beheben lassen.
+  endlos erneut versuchen: Altstand erhalten und kennzeichnen und die im Fehlertext
+  genannte Abhilfe weitergeben (erneute Anmeldung bzw. Aktualisierung; lokal sind
+  das login und sync --characters, gehostet die Anmeldeseite und refresh_data).
 - Ohne refresh_data arbeite nur mit klar gekennzeichnetem vorhandenen Stand oder
   frage gezielt nach fehlenden Daten. Behaupte keinen Hintergrunddienst oder Live-Stand.
 - Lies Profil, relevante Roster-Seiten und Katalogeinträge. Suche und paginiere;

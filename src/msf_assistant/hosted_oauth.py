@@ -206,10 +206,12 @@ class HostedOAuthProvider:
         )
 
     def _client(self, db, client_id):
+        # A registration outlives its 24 h window while any grant, revoked or
+        # not, is still within the refresh family lifetime: the player's client
+        # keeps its client_id after a revocation and must be able to reconnect.
         row = db.execute(
             "SELECT metadata FROM oauth_clients WHERE id=? AND (expires>? OR EXISTS ("
-            "SELECT 1 FROM oauth_grants g JOIN players p ON p.id=g.player "
-            "WHERE g.client=oauth_clients.id AND g.revoked=0 AND g.expires>? AND p.active=1))",
+            "SELECT 1 FROM oauth_grants g WHERE g.client=oauth_clients.id AND g.expires>?))",
             (client_id, time.time(), time.time()),
         ).fetchone()
         return OAuthClientInformationFull.model_validate_json(row[0]) if row else None
@@ -597,6 +599,10 @@ class HostedOAuthProvider:
                 route.app = RequestBodyLimitMiddleware(
                     _SDKFormCompatibility(route.app, resource), DEFAULT_MAX_REQUEST_BODY_SIZE
                 )
+        # Pass plain strings: the metadata model keeps an empty path only when it
+        # validates from a string, so the issuer identifier stays slash-free.
         return routes + create_protected_resource_routes(
-            AnyHttpUrl(self.resource), [issuer], scopes_supported=SCOPES
+            self.resource,  # type: ignore[arg-type]
+            [self.public_url],  # type: ignore[list-item]
+            scopes_supported=SCOPES,
         )
