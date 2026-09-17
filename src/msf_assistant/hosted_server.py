@@ -15,12 +15,23 @@ from starlette.routing import Route
 from msf_assistant.advisor_context import ContextStore
 from msf_assistant.advisor_instructions import ADVISOR_INSTRUCTIONS
 from msf_assistant.hosted_oauth import SCOPES
-from msf_assistant.hosted_sync import HostedSync
+from msf_assistant.hosted_sync import HostedSync, HostedSyncError
 from msf_assistant.hosted_web import account_routes
-from msf_assistant.mcp_server import AdvisorServer, register_tools
-from msf_assistant.snapshot import SnapshotReader
+from msf_assistant.mcp_server import AdvisorServer, ToolMessages, register_tools
+from msf_assistant.snapshot import SnapshotError, SnapshotReader
 
 _player: ContextVar[str] = ContextVar("hosted_player")
+HOSTED_MESSAGES = ToolMessages(
+    read_failed="Spieldaten konnten nicht gelesen werden; refresh_data ausführen.",
+    refresh_failed=(
+        "Aktualisierung fehlgeschlagen; später erneut versuchen. Vorherige Daten bleiben erhalten."
+    ),
+    passthrough=HostedSyncError,
+)
+MISSING_SNAPSHOT = (
+    "Noch keine Spieldaten für dieses Konto vorhanden; refresh_data ausführen, um sie von MSF "
+    "abzurufen."
+)
 PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource/mcp"
 WRITE_TOOLS = frozenset(
     {
@@ -55,6 +66,9 @@ class PlayerBackend:
             player_id = _player.get()
             with self.store.player_lock(player_id):
                 directory = self.store.player_dir(player_id)
+                missing = not (directory / "snapshot.json").exists()
+                if self.kind == "snapshot" and name != "status" and missing:
+                    raise SnapshotError(MISSING_SNAPSHOT)
                 backend = (
                     SnapshotReader(directory / "snapshot.json")
                     if self.kind == "snapshot"
@@ -225,7 +239,7 @@ def create_hosted_app(
     public_url = public_url.rstrip("/")
     if public_url != provider.public_url:
         raise ValueError("OAuth issuer must match the public URL")
-    sync = HostedSync(store, settings)
+    sync = HostedSync(store, settings, login_url=public_url + "/login")
     server = AdvisorServer(
         "MSF Assistant",
         version="0.4.0",
@@ -244,6 +258,7 @@ def create_hosted_app(
         PlayerBackend(store, "snapshot", limits),
         PlayerBackend(store, "context", limits),
         refresh=lambda: sync.refresh(_player.get(), admitted=True),
+        messages=HOSTED_MESSAGES,
     )
     app = server.streamable_http_app(
         stateless_http=True,

@@ -493,3 +493,27 @@ def test_response_size_cap_returns_safe_error(env):
         assert response.status_code == 503
         assert len(response.content) < 100
         assert app.active == 0
+
+
+def test_hosted_tool_errors_never_mention_local_cli_commands(env, monkeypatch):
+    from msf_assistant.hosted_sync import HostedSyncError
+
+    app, store, provider, alice, a, bob, b = env
+    with TestClient(app, base_url="https://msf.example") as http:
+        # Alice has no snapshot yet: the advice must be refresh_data, not "run login".
+        profile = rpc(http, a.access_token, "tools/call", {"name": "get_player_profile"})
+        assert profile.status_code == 200 and profile.json()["result"]["isError"]
+        assert "refresh_data" in profile.text
+        for forbidden in ("run login", "sync --characters", "Lokal", "lokal"):
+            assert forbidden not in profile.text, forbidden
+        monkeypatch.setattr(
+            app.sync,
+            "refresh",
+            lambda *a, **k: (_ for _ in ()).throw(
+                HostedSyncError("MSF-Anmeldung abgelaufen: https://msf.example/login")
+            ),
+        )
+        failed = rpc(http, a.access_token, "tools/call", {"name": "refresh_data"})
+        assert failed.status_code == 200
+        assert "https://msf.example/login" in failed.text
+        assert "Lokal sync" not in failed.text

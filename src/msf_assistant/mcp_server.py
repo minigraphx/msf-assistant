@@ -12,6 +12,8 @@ from mcp.types import Tool as MCPTool
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
+from dataclasses import dataclass
+
 from msf_assistant.advisor_context import ContextError, ContextStore
 from msf_assistant.advisor_instructions import ADVISOR_INSTRUCTIONS
 from msf_assistant.snapshot import SnapshotError, SnapshotReader
@@ -90,11 +92,31 @@ def create_server(
     return register_tools(server, reader, context, refresh=refresh, read_only=read_only)
 
 
+@dataclass(frozen=True)
+class ToolMessages:
+    """Player-facing error texts; the hosted service overrides the local CLI hints."""
+
+    read_failed: str = "Lokale Daten konnten nicht gelesen werden. Status und sync prüfen."
+    refresh_failed: str = (
+        "Aktualisierung fehlgeschlagen. Lokal sync --characters ausführen; "
+        "bei abgelaufener Anmeldung login starten. Vorherige Daten bleiben erhalten."
+    )
+    # Exceptions of this type carry a safe, already player-facing message.
+    passthrough: type[BaseException] | None = None
+
+    def refresh_error(self, exc: BaseException) -> str:
+        if self.passthrough is not None and isinstance(exc, self.passthrough):
+            return str(exc)
+        return self.refresh_failed
+
+
 def register_tools(
     server: AdvisorServer, reader: Any, context: Any, *,
     refresh: Callable[[], None] | None = None, read_only: bool = False,
+    messages: ToolMessages | None = None,
 ) -> MCPServer:
     """Bind the unchanged tool definitions to local or request-scoped backends."""
+    messages = messages or ToolMessages()
     read = ToolAnnotations(
         read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False
     )
@@ -117,9 +139,7 @@ def register_tools(
         except SnapshotError as exc:
             raise ToolError(str(exc)) from None
         except Exception:
-            raise ToolError(
-                "Lokale Daten konnten nicht gelesen werden. Status und sync prüfen."
-            ) from None
+            raise ToolError(messages.read_failed) from None
 
     def safe_context_call(
         call: Callable[..., dict[str, Any]], *args: Any, **kwargs: Any
@@ -273,11 +293,8 @@ def register_tools(
             """Refresh missing/stale data once when permitted, or on explicit request."""
             try:
                 refresh()
-            except Exception:
-                raise ToolError(
-                    "Aktualisierung fehlgeschlagen. Lokal sync --characters ausführen; "
-                    "bei abgelaufener Anmeldung login starten. Vorherige Daten bleiben erhalten."
-                ) from None
+            except Exception as exc:
+                raise ToolError(messages.refresh_error(exc)) from None
             return safe_call(reader.status)
 
     return server
