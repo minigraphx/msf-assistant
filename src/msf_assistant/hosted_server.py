@@ -14,12 +14,14 @@ from starlette.routing import Route
 
 from msf_assistant.advisor_context import ContextStore
 from msf_assistant.advisor_instructions import ADVISOR_INSTRUCTIONS
+from msf_assistant.hosted_oauth import SCOPES
 from msf_assistant.hosted_sync import HostedSync
 from msf_assistant.hosted_web import account_routes
 from msf_assistant.mcp_server import AdvisorServer, register_tools
 from msf_assistant.snapshot import SnapshotReader
 
 _player: ContextVar[str] = ContextVar("hosted_player")
+PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource/mcp"
 WRITE_TOOLS = frozenset(
     {
         "save_goal",
@@ -125,8 +127,11 @@ class PublicGuard:
                     401,
                     "Authentication required",
                     {
+                        # Clients take requested scopes from this challenge first, then
+                        # from protected-resource metadata; advertise every scope.
                         "WWW-Authenticate": f'Bearer resource_metadata="{self.provider.public_url}'
-                        '/.well-known/oauth-protected-resource/mcp"'
+                        '/.well-known/oauth-protected-resource/mcp", '
+                        f'scope="{" ".join(SCOPES)}"'
                     },
                 )
             if "msf:read" not in token.scopes:
@@ -248,6 +253,10 @@ def create_hosted_app(store, provider, identity, settings, public_url, *, limits
     async def health(request):
         return JSONResponse({"status": "ok"})
 
+    # AuthSettings makes the SDK mount its own protected-resource metadata built
+    # from required_scopes only; Starlette matches the first route, so drop it in
+    # favour of the provider's document that advertises every grantable scope.
+    app.routes[:] = [r for r in app.routes if getattr(r, "path", None) != PROTECTED_RESOURCE_PATH]
     app.routes.extend(provider.auth_routes())
     app.routes.extend(account_routes(store, provider, identity, public_url))
     app.routes.append(Route("/health", health))

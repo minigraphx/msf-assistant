@@ -371,11 +371,14 @@ def test_sdk_registration_and_revocation_routes(env):
     with TestClient(Starlette(routes=provider.auth_routes())) as http:
         registration = client().model_dump(mode="json", exclude_none=True)
         registration.pop("client_id")
+        registration.pop("scope")
         response = http.post("/register", json=registration)
         assert response.status_code == 201, response.text
         app = OAuthClientInformationFull.model_validate(response.json())
         assert app.client_secret is None
         assert app.token_endpoint_auth_method == "none"
+        # A client that omits `scope` must still be able to request every scope later.
+        assert app.scope == "msf:read msf:write offline_access"
         _, tokens, _ = tokens_for(provider, store, app=app)
         response = http.post(
             "/revoke", data={"client_id": app.client_id, "token": tokens.access_token}

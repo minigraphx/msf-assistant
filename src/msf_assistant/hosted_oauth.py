@@ -575,8 +575,10 @@ class HostedOAuthProvider:
     def auth_routes(self) -> list[Route]:
         """SDK handlers plus public-client metadata and exact token-resource guard."""
         issuer = AnyHttpUrl(self.public_url)
+        # A registration without `scope` must not pin the client to read-only;
+        # the scopes actually granted are chosen per authorization request.
         options = ClientRegistrationOptions(
-            enabled=True, valid_scopes=SCOPES, default_scopes=["msf:read"]
+            enabled=True, valid_scopes=SCOPES, default_scopes=SCOPES
         )
         revocation = RevocationOptions(enabled=True)
         routes = create_auth_routes(

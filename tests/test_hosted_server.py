@@ -358,6 +358,29 @@ def test_rate_state_expires_and_remains_bounded(env, monkeypatch):
         assert http.get("/.well-known/oauth-authorization-server").status_code == 200
 
 
+def test_composed_app_advertises_every_scope_to_real_clients(env):
+    """Clients derive requested scopes from WWW-Authenticate, then PRM, then AS metadata.
+
+    The SDK mounts its own protected-resource route from AuthSettings; it must not
+    shadow the provider's, or real clients would only ever ask for msf:read.
+    """
+    from msf_assistant.hosted_oauth import SCOPES
+
+    app, *_ = env
+    with TestClient(app, base_url="https://msf.example") as http:
+        challenge = http.post("/mcp")
+        assert challenge.status_code == 401
+        assert 'scope="msf:read msf:write offline_access"' in challenge.headers["WWW-Authenticate"]
+        prm = http.get("/.well-known/oauth-protected-resource/mcp").json()
+        assert prm["scopes_supported"] == SCOPES
+        assert prm["resource"] == "https://msf.example/mcp"
+        served = http.get("/.well-known/oauth-authorization-server").json()
+        assert served["scopes_supported"] == SCOPES
+        assert [
+            r.path for r in app.app.routes if r.path == "/.well-known/oauth-protected-resource/mcp"
+        ] == ["/.well-known/oauth-protected-resource/mcp"]
+
+
 def test_initialization_retains_advisor_instructions(env):
     from msf_assistant.advisor_instructions import ADVISOR_INSTRUCTIONS
 
