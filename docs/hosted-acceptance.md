@@ -29,8 +29,11 @@ codes or callback URLs into notes.
 4. In Claude: "Call get_status." → `available: false` (no snapshot yet).
 5. "Run refresh_data." → status now `available: true` with a fresh timestamp.
 6. "Show my profile." → A's real profile (name/level/power).
+7. New conversation: "Who should I upgrade next?" → the assistant follows the
+   guide unprompted: reads `get_status`/`get_advisor_context` (or `get_guide`)
+   before advising, states the roster age, and asks only decisive questions.
 
-Pass: steps 2–6 as described. Fail if consent lacks the account line, if
+Pass: steps 2–7 as described. Fail if consent lacks the account line, if
 scopes are only read (refresh_data returns a 403 "write scope" error), or if
 the client asks for a client secret.
 

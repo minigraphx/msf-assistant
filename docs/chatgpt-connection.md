@@ -78,7 +78,9 @@ reload the tool list in ChatGPT.
 
 A good first test: "Check the MSF data state and show my three strongest
 characters." Expect `get_status` first, then `get_player_roster` with
-`limit: 3`. Name search requires one prior `sync --characters`. Then let the
+`limit: 3`. ChatGPT does not show the server instructions; the assistant
+should call `get_guide` on its own in a new conversation — if it does not, ask
+for it once. Name search requires one prior `sync --characters`. Then let the
 assistant open a current public guide page in the same conversation — only that
 proves research and the private MCP work together in your host.
 
@@ -101,7 +103,9 @@ HTTPS, access control and permanent operation — that is the hosted mode.
 
 ## Advice workflow
 
-Use the MCP prompt `plan_upgrades` if the host offers prompts, or the opening
-request from the [advisor guide](advisor-guide.md). The server instructions are
-delivered at MCP initialisation. The [acceptance checklist](advisor-acceptance.md)
+Use the MCP prompt `plan_upgrades` (or one of the task prompts `next_upgrade`,
+`prepare_dark_dimension`, `long_term_value`, `evaluate_new_team`, `data_check`)
+if the host offers prompts, or the opening request from the
+[advisor guide](advisor-guide.md). The server instructions are delivered at MCP
+initialisation and returned by `get_guide`. The [acceptance checklist](advisor-acceptance.md)
 separates protocol tests from the four real game questions.
