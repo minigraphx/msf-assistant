@@ -504,7 +504,7 @@ def test_hosted_tool_errors_never_mention_local_cli_commands(env, monkeypatch):
         profile = rpc(http, a.access_token, "tools/call", {"name": "get_player_profile"})
         assert profile.status_code == 200 and profile.json()["result"]["isError"]
         assert "refresh_data" in profile.text
-        for forbidden in ("run login", "sync --characters", "Lokal", "lokal"):
+        for forbidden in ("run login", "sync --characters", "Lokal", "lokal", "local"):
             assert forbidden not in profile.text, forbidden
         monkeypatch.setattr(
             app.sync,
@@ -516,7 +516,7 @@ def test_hosted_tool_errors_never_mention_local_cli_commands(env, monkeypatch):
         failed = rpc(http, a.access_token, "tools/call", {"name": "refresh_data"})
         assert failed.status_code == 200
         assert "https://msf.example/login" in failed.text
-        assert "Lokal sync" not in failed.text
+        assert "sync --characters" not in failed.text
 
 
 def test_write_tools_match_registered_annotations():

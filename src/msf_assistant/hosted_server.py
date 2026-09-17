@@ -24,15 +24,12 @@ from msf_assistant.snapshot import SnapshotError, SnapshotReader
 logger = logging.getLogger("msf_assistant.hosted")
 _player: ContextVar[str] = ContextVar("hosted_player")
 HOSTED_MESSAGES = ToolMessages(
-    read_failed="Spieldaten konnten nicht gelesen werden; refresh_data ausführen.",
-    refresh_failed=(
-        "Aktualisierung fehlgeschlagen; später erneut versuchen. Vorherige Daten bleiben erhalten."
-    ),
+    read_failed="Your game data could not be read; run refresh_data.",
+    refresh_failed="Refresh failed; try again later. Your previous data is retained.",
     passthrough=HostedSyncError,
 )
 MISSING_SNAPSHOT = (
-    "Noch keine Spieldaten für dieses Konto vorhanden; refresh_data ausführen, um sie von MSF "
-    "abzurufen."
+    "No game data stored for this account yet; run refresh_data to fetch it from MSF."
 )
 PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource/mcp"
 WRITE_TOOLS = frozenset(

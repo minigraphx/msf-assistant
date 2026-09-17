@@ -21,7 +21,7 @@ def test_refresh_persists_rotated_credentials_before_failed_fetch(tmp_path, monk
         raise RuntimeError("secret upstream data")
 
     monkeypatch.setattr(hosted_sync, "fetch_snapshot", fail)
-    with pytest.raises(hosted_sync.HostedSyncError, match="fehlgeschlagen"):
+    with pytest.raises(hosted_sync.HostedSyncError, match="Refresh failed"):
         hosted_sync.HostedSync(store, Settings("test")).refresh(player.id)
     assert store.load_tokens(player.id).refresh_token == "keep"
     assert output.read_text() == "old snapshot"
@@ -102,7 +102,7 @@ def test_parallel_refresh_isolation_and_capacity(tmp_path, monkeypatch):
         jobs = [pool.submit(sync.refresh, p.id) for p in players[:2]]
         entered.wait(timeout=5)
         try:
-            with pytest.raises(hosted_sync.HostedSyncError, match="ausgelastet"):
+            with pytest.raises(hosted_sync.HostedSyncError, match="busy"):
                 sync.refresh(players[2].id)
         finally:
             release.set()

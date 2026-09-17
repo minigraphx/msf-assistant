@@ -1,4 +1,4 @@
-"""Small German account UI; browser credentials never contain upstream tokens.
+"""Small English account UI; browser credentials never contain upstream tokens.
 
 Startup initializes tables synchronously. Runtime file/HTTP/SQLite work runs in
 bounded workers. Acquire maintenance before player locks when composing hosting.
@@ -28,9 +28,9 @@ SESSION_TTL = 8 * 3600
 LOGIN_TTL = 600
 MAX_SESSIONS = 1000
 PERMISSIONS = {
-    "msf:read": "Eigene Spieldaten und Kontext lesen",
-    "msf:write": "Eigenen Spielkontext ändern und Daten aktualisieren",
-    "offline_access": "Zugriff ohne erneute Anmeldung (bis zu 30 Tage)",
+    "msf:read": "Read your own game data and advisor context",
+    "msf:write": "Change your own advisor context and refresh your data",
+    "offline_access": "Stay connected without signing in again (up to 30 days)",
 }
 
 
@@ -38,7 +38,7 @@ def client_label(connection):
     return {
         "https://chatgpt.com": "ChatGPT (chatgpt.com)",
         "https://claude.ai": "Claude (claude.ai)",
-    }.get(connection.get("callback_origin"), "Unbekannte Verbindung (ältere Freigabe)")
+    }.get(connection.get("callback_origin"), "Unknown connection (older grant)")
 
 
 def digest(value):
@@ -48,11 +48,11 @@ def digest(value):
 def page(body, status=200, *, form_origins=""):
     form_policy = "form-action 'self'" + (" " + form_origins if form_origins else "")
     return HTMLResponse(
-        '<!doctype html><html lang="de"><meta charset="utf-8">'
+        '<!doctype html><html lang="en"><meta charset="utf-8">'
         "<title>MSF Assistant</title><body>"
         + body
-        + '<p><a href="/">Hilfe</a> · <a href="/privacy.html">Datenschutz</a> · '
-        '<a href="/terms.html">Nutzungsbedingungen</a></p></body></html>',
+        + '<p><a href="/">Help</a> · <a href="/privacy.html">Privacy</a> · '
+        '<a href="/terms.html">Terms</a></p></body></html>',
         status_code=status,
         headers={
             "Cache-Control": "no-store",
@@ -199,29 +199,29 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
 
     async def home(request):
         return page(
-            "<h1>MSF Assistant</h1><p>Verbinde dein eigenes MSF-Konto mit deinem "
-            "Assistenten. Jeder Spieler meldet sich direkt bei MSF an; ein lokales "
-            "Passwort ist nicht nötig.</p><p>Nach der Verbindung kannst du deine Daten "
-            "im Assistenten aktualisieren. Die Anmeldung startet keine vollständige "
-            'Synchronisierung.</p><a href="/login">Mit MSF anmelden / registrieren</a> '
-            '<a href="/account">Konto und Verbindungen</a>'
-            "<h2>Mit ChatGPT oder Claude verbinden</h2>"
-            "<p>Verwende diese MCP-Adresse: <code>" + escape(public_url + "/mcp") + "</code></p>"
-            "<ol><li><strong>ChatGPT:</strong> Öffne Einstellungen → Sicherheit und Anmeldung "
-            "→ Entwicklermodus. Füge unter Plugins den öffentlichen MCP-Server mit der "
-            "obigen Adresse hinzu und wähle Verbinden. "
+            "<h1>MSF Assistant</h1><p>Connect your own Marvel Strike Force account to "
+            "your AI assistant. Every player signs in directly with MSF; no separate "
+            "password is needed.</p><p>Once connected, you can refresh your data from "
+            "inside the assistant. Signing in does not start a full "
+            'synchronization.</p><a href="/login">Sign in / register with MSF</a> '
+            '<a href="/account">Account and connections</a>'
+            "<h2>Connect ChatGPT or Claude</h2>"
+            "<p>Use this MCP address: <code>" + escape(public_url + "/mcp") + "</code></p>"
+            "<ol><li><strong>ChatGPT:</strong> Open Settings → Security and sign-in → "
+            "Developer mode. Under Plugins, add the public MCP server with the address "
+            "above and choose Connect. "
             '<a href="https://developers.openai.com/plugins/deploy/connect-chatgpt">'
-            "Offizielle ChatGPT-Anleitung</a>.</li>"
-            "<li><strong>Claude:</strong> Öffne Anpassen → Connectors → Eigenen Connector "
-            "hinzufügen. Trage die Adresse ein. Fragt der Dialog nach dem OAuth-Client, "
-            "wähle „Automatisch registrieren“ (nicht die veröffentlichte Identität und "
-            "keinen eigenen Client). Danach melde dich an. "
+            "Official ChatGPT guide</a>.</li>"
+            "<li><strong>Claude:</strong> Open Customize → Connectors → Add custom "
+            "connector. Enter the address. If the dialog asks about the OAuth client, "
+            "choose \u201cRegister automatically\u201d (not the published identity and not "
+            "your own client). Then sign in. "
             '<a href="https://claude.com/docs/connectors/custom/remote-mcp">'
-            "Offizielle Claude-Anleitung</a>.</li></ol>"
-            "<p>Der Client registriert sich automatisch. Melde dich im Browser bei deinem "
-            "eigenen MSF-Konto an und bestätige die angefragten Rechte. Du brauchst keinen "
-            "MSF-App-Schlüssel oder Client-Secret. Verfügbarkeit und Freigaben hängen vom "
-            "Tarif und den Regeln deines Arbeitsbereichs ab.</p>"
+            "Official Claude guide</a>.</li></ol>"
+            "<p>The client registers itself automatically. Sign in to your own MSF account "
+            "in the browser and approve the requested permissions. You do not need an MSF "
+            "app key or client secret. Availability and approvals depend on your plan and "
+            "your workspace rules.</p>"
         )
 
     async def privacy(request):
@@ -242,8 +242,8 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
         )
         return cookie(
             page(
-                "<h1>MSF-Anmeldung</h1>"
-                + form("/login", payload["csrf"], "<button>Bei MSF anmelden</button>"),
+                "<h1>Sign in with MSF</h1>"
+                + form("/login", payload["csrf"], "<button>Sign in with MSF</button>"),
                 form_origins=msf_origin,
             ),
             raw,
@@ -285,11 +285,11 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
             return redirect(await provider.approve(request_id, payload["player"]))
         account = await run(store.require_player, payload["player"])
         body = (
-            "<h1>Verbindung erlauben</h1><p>"
+            "<h1>Allow connection</h1><p>"
             + escape(client_label(pending))
-            + "</p><p>Verbindungskennung: "
+            + "</p><p>Connection ID: "
             + escape(pending["client_id"])
-            + "</p><p>Verbundenes MSF-Konto: <code>"
+            + "</p><p>Connected MSF account: <code>"
             + escape(account.subject[:8])
             + "…</code></p><ul>"
         )
@@ -299,8 +299,8 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
         action = "/consent?request_id=" + escape(request_id, quote=True)
         return page(
             body
-            + form(action, payload["csrf"], "<button>Zugriff erlauben</button>")
-            + '<p><a href="/account">Abbrechen</a></p>',
+            + form(action, payload["csrf"], "<button>Allow access</button>")
+            + '<p><a href="/account">Cancel</a></p>',
             form_origins="https://chatgpt.com https://claude.ai",
         )
 
@@ -311,12 +311,12 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
         except (ValueError, KeyError):
             return redirect("/login")
         grants = await provider.list_grants(player)
-        body = "<h1>Dein Konto</h1><h2>Verbindungen</h2>"
+        body = "<h1>Your account</h1><h2>Connections</h2>"
         for grant in grants:
             body += (
                 "<p>"
                 + escape(client_label(grant))
-                + "</p><p>Verbindungskennung: "
+                + "</p><p>Connection ID: "
                 + escape(grant["client_id"])
                 + "</p><p>"
                 + escape("; ".join(PERMISSIONS[s] for s in grant["scopes"]))
@@ -327,14 +327,14 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
                 payload["csrf"],
                 '<input type="hidden" name="grant" value="'
                 + escape(grant["id"], quote=True)
-                + '"><button>Verbindung widerrufen</button>',
+                + '"><button>Revoke connection</button>',
             )
-        body += "<h2>Konto löschen</h2><p>Entfernt deine aktiven Daten und alle Verbindungen.</p>"
+        body += "<h2>Delete account</h2><p>Removes your active data and all connections.</p>"
         body += form(
             "/account/delete",
             payload["csrf"],
             '<label><input type="checkbox" name="confirm" value="delete" required>'
-            " Konto endgültig löschen</label><button>Löschen bestätigen</button>",
+            " Permanently delete my account</label><button>Confirm deletion</button>",
         )
         return page(body)
 
@@ -371,10 +371,10 @@ def account_routes(store, provider, identity, public_url, *, operator=None):
                 logger.warning("%s failed: %s", request.url.path, type(exc).__name__)
                 # No upstream response bodies, request parameters or credentials in HTML.
                 return page(
-                    "<h1>Vorgang nicht möglich</h1><p>Die Anmeldung oder Sitzung ist "
-                    "ungültig, abgelaufen oder der Dienst ist vorübergehend nicht "
-                    "erreichbar. Bitte starte die Anmeldung erneut.</p>"
-                    '<a href="/login">Neu anmelden</a>',
+                    "<h1>Action not possible</h1><p>The sign-in or session is invalid or "
+                    "expired, or the service is temporarily unavailable. Please start "
+                    "the sign-in again.</p>"
+                    '<a href="/login">Sign in again</a>',
                     400,
                 )
 

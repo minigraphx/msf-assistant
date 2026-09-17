@@ -29,16 +29,14 @@ class HostedSync:
 
     def _relogin(self):
         return HostedSyncError(
-            f"MSF-Anmeldung fehlt oder ist abgelaufen. Erneut anmelden unter {self.login_url}, "
-            "danach refresh_data erneut ausführen. Vorherige Daten bleiben erhalten."
+            f"Your MSF sign-in is missing or expired. Sign in again at {self.login_url}, "
+            "then run refresh_data again. Your previous data is retained."
         )
 
     def refresh(self, player_id, *, admitted=False):
         acquired = admitted or self.capacity.acquire(blocking=False)
         if not acquired:
-            raise HostedSyncError(
-                "Aktualisierung ist gerade ausgelastet; in einer Minute erneut versuchen."
-            )
+            raise HostedSyncError("Refresh is busy right now; try again in a minute.")
         try:
             with self.store.player_lock(player_id):
                 tokens = self.store.load_tokens(player_id)
@@ -71,8 +69,7 @@ class HostedSync:
         except Exception as exc:
             logger.warning("refresh failed: %s", type(exc).__name__)
             raise HostedSyncError(
-                "Aktualisierung fehlgeschlagen; später erneut versuchen. "
-                "Vorherige Daten bleiben erhalten."
+                "Refresh failed; try again later. Your previous data is retained."
             ) from None
         finally:
             if not admitted:

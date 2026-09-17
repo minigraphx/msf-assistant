@@ -155,7 +155,7 @@ def test_two_players_two_clients_and_html_escaping(setup):
         page = browser.get(target)
         assert page.status_code == 200
         assert "<script>" not in page.text
-        assert "Eigene Spieldaten" in page.text
+        assert "Read your own game data" in page.text
         assert (
             "form-action 'self' https://chatgpt.com https://claude.ai;"
             in (page.headers["content-security-policy"])
@@ -334,7 +334,7 @@ def test_selected_callback_identifies_each_opaque_client_grant(setup):
         assert label in page.text
         assert "Misleading Other Service" not in page.text
         # The consent page names the MSF account being connected (subject "alice").
-        assert "Verbundenes MSF-Konto: <code>alice…</code>" in page.text
+        assert "Connected MSF account: <code>alice…</code>" in page.text
         assert (
             browser.post(target, data={"csrf": csrf(page)}, headers={"Origin": ORIGIN}).status_code
             == 303
@@ -342,8 +342,8 @@ def test_selected_callback_identifies_each_opaque_client_grant(setup):
     page = browser.get("/account")
     assert "Claude (claude.ai)" in page.text and "ChatGPT (chatgpt.com)" in page.text
     assert "msf:read" not in page.text and "msf:write" not in page.text
-    assert "Eigene Spieldaten und Kontext lesen" in page.text
-    assert "Eigenen Spielkontext ändern und Daten aktualisieren" in page.text
+    assert "Read your own game data and advisor context" in page.text
+    assert "Change your own advisor context and refresh your data" in page.text
     alice = store.player("https://hydra-public.prod.m3.scopelypv.com/", "alice")
     grants = asyncio.run(provider.list_grants(alice.id))
     claude = next(g for g in grants if g["callback_origin"] == "https://claude.ai")
@@ -360,7 +360,7 @@ def test_selected_callback_identifies_each_opaque_client_grant(setup):
     with store.transaction() as db:
         db.execute("UPDATE oauth_grants SET callback_origin=NULL WHERE player=?", (alice.id,))
     page = browser.get("/account")
-    assert "Unbekannte Verbindung (ältere Freigabe)" in page.text
+    assert "Unknown connection (older grant)" in page.text
     assert "ChatGPT (chatgpt.com)" not in page.text
 
 
@@ -372,7 +372,7 @@ def test_home_explains_configured_connector_url_and_clients(setup):
     assert "developers.openai.com/plugins/deploy/connect-chatgpt" in text
     assert "claude.com/docs/connectors/custom/remote-mcp" in text
     # Claude's dialog defaults to published identity (CIMD), which is unsupported.
-    assert "Automatisch registrieren" in text
+    assert "Register automatically" in text
     assert 'href="/privacy.html"' in text
 
 
@@ -381,14 +381,14 @@ def test_privacy_and_terms_name_the_operator_and_are_linked(setup):
     privacy = browser.get("/privacy.html")
     assert privacy.status_code == 200
     for expected in (
-        "Verantwortlich",
+        "Responsible for data processing",
         "Max &lt;Muster&gt;",
         "Musterweg 1, 8000 Zürich",
         "max@example.invalid",
         "Scopely",
         "ChatGPT",
         "Claude",
-        "Auskunft",
+        "right of access",
         "__Host-msf_session",
     ):
         assert expected in privacy.text, expected
@@ -396,12 +396,12 @@ def test_privacy_and_terms_name_the_operator_and_are_linked(setup):
     terms = browser.get("/terms.html")
     assert terms.status_code == 200
     for expected in (
-        "Nutzungsbedingungen",
+        "Terms of Service",
         "Max &lt;Muster&gt;",
         "Scopely",
-        "eigenes MSF-Konto",
-        "ohne Gewähr",
-        "Schweizer Recht",
+        "only your own MSF account",
+        "without warranty",
+        "Swiss law applies",
     ):
         assert expected in terms.text, expected
     for path in ("/", "/privacy.html", "/terms.html"):
@@ -416,7 +416,7 @@ def test_pages_without_operator_say_so_instead_of_inventing_details(tmp_path):
     app = Starlette(routes=account_routes(store, provider, identity, ORIGIN))
     with TestClient(app, base_url=ORIGIN) as browser:
         text = browser.get("/privacy.html").text
-        assert "nicht konfiguriert" in text
+        assert "not configured" in text
 
 
 def test_failures_log_only_route_and_exception_class(setup, caplog):

@@ -235,7 +235,7 @@ application additionally limits authenticated players. Failures inside the
 service log only the route and the exception class name at WARNING (visible in
 `docker logs`), never messages, parameters or credentials.
 
-The public help page displays the configured origin plus `/mcp` and German setup
+The public help page (English) displays the configured origin plus `/mcp` and setup
 steps. Clients use automatic registration and OAuth/PKCE; players never supply
 MSF application secrets. Follow current official [ChatGPT setup](https://developers.openai.com/plugins/deploy/connect-chatgpt)
 and [Claude setup](https://claude.com/docs/connectors/custom/remote-mcp).
