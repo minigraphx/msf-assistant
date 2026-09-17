@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator, Mapping
 from typing import Any
+from urllib.parse import quote
 
 import requests
 
@@ -12,6 +13,22 @@ from msf_assistant.config import Settings
 from msf_assistant.hosted_transport import bounded_request_options
 
 JsonObject = dict[str, Any]
+MAX_LEVEL = 200
+MAX_YELLOW = 7
+MAX_RED = 10  # 8-10 are diamonds
+MAX_GEAR_TIER = 100
+# One projection needs neither character metadata nor localized strings.
+INSTANCE_PARAMS = {
+    "lang": "none",
+    "charInfo": "none",
+    "abilityKits": "none",
+    "gearTiers": "none",
+    "pieceInfo": "none",
+    "subPieceInfo": "none",
+    "itemFormat": "id",
+    "traitFormat": "id",
+    "statsFormat": "object",
+}
 
 
 class MSFAPIError(RuntimeError):
@@ -108,3 +125,32 @@ class MSFAPIClient:
             if len(records) < per_page:
                 break
             page += 1
+
+    def character_instance(
+        self, character_id: str, *, level: int, yellow: int, red: int, gear_tier: int | str
+    ) -> JsonObject:
+        """Project stats and power for one build; gear_tier "all" returns the curve."""
+        if not character_id or not isinstance(character_id, str):
+            raise ValueError("character_id must not be empty")
+        _check_range("level", level, 1, MAX_LEVEL)
+        _check_range("yellow", yellow, 1, MAX_YELLOW)
+        _check_range("red", red, 0, MAX_RED)
+        if gear_tier != "all":
+            _check_range("gear_tier", gear_tier, 1, MAX_GEAR_TIER)
+        path = "/".join(
+            str(part)
+            for part in (
+                "game/v1/characterInstances",
+                quote(character_id, safe=""),
+                level,
+                yellow,
+                red,
+                gear_tier,
+            )
+        )
+        return self.get(path, params=INSTANCE_PARAMS)
+
+
+def _check_range(name: str, value: Any, low: int, high: int) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+        raise ValueError(f"{name} must be an integer between {low} and {high}")

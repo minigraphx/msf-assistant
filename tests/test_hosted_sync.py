@@ -317,3 +317,116 @@ def test_expired_msf_credentials_point_to_the_hosted_login(tmp_path, monkeypatch
     other = store.player("issuer", "bob")
     with pytest.raises(hosted_sync.HostedSyncError, match="msf.example/login"):
         sync.refresh(other.id)
+
+
+def lock_is_free(store, player_id):
+    import fcntl
+    import os
+
+    fd = os.open(store.root / "locks" / (player_id + ".lock"), os.O_RDWR)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except BlockingIOError:
+        return False
+    finally:
+        os.close(fd)
+
+
+def test_query_runs_under_the_player_lock_with_a_bounded_client(tmp_path, monkeypatch):
+    from msf_assistant import hosted_sync
+
+    store = HostedStore(tmp_path / "private", Fernet.generate_key())
+    player = store.player("issuer", "alice")
+    store.save_tokens(player.id, TokenSet("access", refresh_token="keep"))
+    monkeypatch.setattr(
+        hosted_sync.MSFOAuth2, "refresh", lambda *a, **k: pytest.fail("must not refresh")
+    )
+    sync = hosted_sync.HostedSync(store, Settings("test"))
+
+    def fn(client):
+        assert client.session.headers["Authorization"] == "Bearer access"
+        assert client.remaining_bytes == hosted_sync.QUERY_BYTES
+        # The player lock is held: a concurrent deletion or refresh must wait.
+        assert not lock_is_free(store, player.id)
+        return {"ok": True}
+
+    assert sync.query(player.id, fn) == {"ok": True}
+    assert lock_is_free(store, player.id)
+
+
+def test_query_refresh_failure_and_missing_credentials_point_to_the_login(
+    tmp_path, monkeypatch
+):
+    import requests
+
+    from msf_assistant import hosted_sync
+
+    store = HostedStore(tmp_path / "private", Fernet.generate_key())
+    player = store.player("issuer", "alice")
+    store.save_tokens(player.id, TokenSet("old", refresh_token="stale"))
+
+    def rejected(self, token):
+        response = requests.Response()
+        response.status_code = 400
+        raise requests.HTTPError(response=response)
+
+    def unauthorized(client):
+        response = requests.Response()
+        response.status_code = 401
+        raise requests.HTTPError(response=response)
+
+    monkeypatch.setattr(hosted_sync.MSFOAuth2, "refresh", rejected)
+    sync = hosted_sync.HostedSync(store, Settings("test"), login_url="https://msf.example/login")
+    with pytest.raises(hosted_sync.HostedSyncError, match="msf.example/login"):
+        sync.query(player.id, unauthorized)
+    other = store.player("issuer", "bob")
+    with pytest.raises(hosted_sync.HostedSyncError, match="msf.example/login"):
+        sync.query(other.id, lambda client: pytest.fail("no credentials, no call"))
+
+
+def test_query_failures_are_generic_and_capacity_bounded(tmp_path):
+    from msf_assistant import hosted_sync
+
+    store = HostedStore(tmp_path / "private", Fernet.generate_key())
+    player = store.player("issuer", "alice")
+    store.save_tokens(player.id, TokenSet("access"))
+    sync = hosted_sync.HostedSync(store, Settings("test"))
+
+    def leaky(client):
+        raise RuntimeError("secret upstream body")
+
+    with pytest.raises(hosted_sync.HostedSyncError) as failure:
+        sync.query(player.id, leaky)
+    assert "secret" not in str(failure.value)
+    assert "MSF query failed" in str(failure.value)
+    sync.capacity.acquire()
+    sync.capacity.acquire()
+    with pytest.raises(hosted_sync.HostedSyncError, match="busy"):
+        sync.query(player.id, lambda client: {"ok": True})
+    sync.capacity.release()
+    assert sync.query(player.id, lambda client: {"ok": True}) == {"ok": True}
+
+
+def test_query_404_names_the_id_and_other_statuses_stay_generic(tmp_path):
+    import requests
+
+    from msf_assistant import hosted_sync
+
+    store = HostedStore(tmp_path / "private", Fernet.generate_key())
+    player = store.player("issuer", "alice")
+    store.save_tokens(player.id, TokenSet("access"))
+    sync = hosted_sync.HostedSync(store, Settings("test"))
+
+    def failing(status):
+        def fn(client):
+            response = requests.Response()
+            response.status_code = status
+            raise requests.HTTPError(response=response)
+
+        return fn
+
+    with pytest.raises(hosted_sync.HostedSyncError, match="character ID"):
+        sync.query(player.id, failing(404))
+    with pytest.raises(hosted_sync.HostedSyncError, match="MSF query failed"):
+        sync.query(player.id, failing(403))

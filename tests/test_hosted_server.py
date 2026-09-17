@@ -87,9 +87,7 @@ def test_auth_isolation_scopes_and_prompt(env):
         # Bob has no snapshot yet: the guide must not depend on player data.
         guide = rpc(http, b.access_token, "tools/call", {"name": "get_guide"})
         assert guide.json()["result"]["structuredContent"]["workflow"]
-        task = rpc(
-            http, b.access_token, "prompts/get", {"name": "data_check", "arguments": {}}
-        )
+        task = rpc(http, b.access_token, "prompts/get", {"name": "data_check", "arguments": {}})
         assert "Task focus" in task.text
         resource = rpc(http, b.access_token, "resources/read", {"uri": "guide://advisor"})
         assert "get_status" in resource.text
@@ -558,3 +556,42 @@ def test_snapshots_expire_after_thirty_days(env):
         assert not path.exists()
         status = rpc(http, a.access_token, "tools/call", {"name": "get_status"})
         assert status.json()["result"]["structuredContent"]["available"] is False
+
+
+def test_project_character_is_a_read_scope_live_query_per_player(env, monkeypatch):
+    from msf_assistant import hosted_sync
+    from msf_assistant.auth import TokenSet
+
+    app, store, provider, alice, a, bob, b = env
+    store.save_tokens(bob.id, TokenSet("bob-access"))
+    calls = []
+
+    def fake_run_query(settings, tokens, fn, *, save_tokens, max_bytes=None):
+        calls.append((tokens.access_token, max_bytes))
+
+        class FakeClient:
+            def character_instance(self, character_id, **build):
+                return {"data": {"gearTier": build["gear_tier"], "power": 99, "stats": {}}}
+
+        return fn(FakeClient())
+
+    monkeypatch.setattr(hosted_sync, "run_query", fake_run_query)
+    build = {"character_id": "Wolverine", "level": 90, "yellow": 7, "red": 7, "gear_tier": 18}
+    with TestClient(app, base_url="https://msf.example") as http:
+        tools = rpc(http, b.access_token, "tools/list").json()["result"]["tools"]
+        project = next(t for t in tools if t["name"] == "project_character")
+        assert project["annotations"]["readOnlyHint"] and project["annotations"]["openWorldHint"]
+        # Read scope suffices; the query runs with Bob's own credentials.
+        result = rpc(
+            http, b.access_token, "tools/call", {"name": "project_character", "arguments": build}
+        )
+        assert result.status_code == 200, result.text
+        assert result.json()["result"]["structuredContent"]["builds"][0]["power"] == 99
+        assert calls == [("bob-access", hosted_sync.QUERY_BYTES)]
+        # Alice has no stored MSF credentials: hosted remedy, no local CLI hints.
+        failed = rpc(
+            http, a.access_token, "tools/call", {"name": "project_character", "arguments": build}
+        )
+        assert failed.json()["result"]["isError"]
+        assert "https://msf.example/login" in failed.text
+        assert "run login" not in failed.text and "sync --characters" not in failed.text
