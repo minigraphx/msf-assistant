@@ -259,6 +259,7 @@ und verbindet ChatGPT/Claude über widerrufbare OAuth-Zugänge. Installation mit
 Die lokale stdio-Nutzung bleibt verfügbar.
 
 [Serverbetrieb, sichere Konfiguration, Backup und Wiederherstellung](docs/server-operations.md)
+und die [Abnahme mit echten Clients](docs/hosted-acceptance.md)
 beschreibt das gepinnte Container-Bundle. Genau ein Container und ein Worker sind
 zulässig. Öffentliche Freigabe setzt einen gepflegten Host, eine passende MSF-App
 und erfolgreiche Tests mit den echten Clients voraus.

@@ -243,5 +243,5 @@ Workspace policies and plans can restrict custom connectors. DCR is supported;
 CIMD fetching is not implemented, so when Claude's connector dialog offers
 "published identity" (its default), "register automatically" or "own client",
 players must choose **register automatically** — the help page says so. Protocol tests are not proof that the current
-real clients accept this deployment; complete both real-client acceptance tests
-before declaring release complete.
+real clients accept this deployment; complete the real-client acceptance script
+in `docs/hosted-acceptance.md` before declaring release complete.
