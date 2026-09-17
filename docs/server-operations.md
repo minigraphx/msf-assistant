@@ -95,11 +95,12 @@ leave headroom for nginx, existing applications and the OS.
 
 Use `nginx.conf.example` as the dedicated vhost. The public name is
 `msf.andywhv.de`; the `andywhv.de` Route53 zone already resolves it through its
-wildcard `A` record to this host, so no DNS change is needed. The host's existing
-certificates do not cover this name: issue a dedicated Let's Encrypt certificate
-(the port-80 block serves `/.well-known/acme-challenge/` from
-`/var/www/letsencrypt` before redirecting) and confirm its renewal hook reloads
-nginx. Run `nginx -t` before reloading. No TLS bypass is allowed. Access logs
+wildcard `A` record to this host, so no DNS change is needed. The host's
+`andywhv.de` Let's Encrypt certificate is a wildcard (`*.andywhv.de`) and covers
+this name; the vhost shares it like the other `andywhv.de` sites. That
+certificate is renewed **manually** (DNS-01, `authenticator = manual`), so put
+its expiry on the operator calendar or switch it to the `certbot-dns-route53`
+plugin now that Route53 access exists. Run `nginx -t` before reloading. No TLS bypass is allowed. Access logs
 use `$uri`, never query strings or full requests. This vhost's nginx error log is
 disabled because error context can retain OAuth callback queries. Use sanitized
 access status, health and container status for diagnosis. Uvicorn access logging

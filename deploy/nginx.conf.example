@@ -2,27 +2,25 @@
 # Never use $request or $request_uri: OAuth callback queries contain secrets.
 log_format msf_safe '$remote_addr [$time_local] "$request_method $uri $server_protocol" '
                     '$status $body_bytes_sent';
-# msf.andywhv.de resolves through the zone's wildcard A record to this host.
-# Issue its own certificate before enabling the 443 block, e.g.
-#   certbot certonly --webroot -w /var/www/letsencrypt -d msf.andywhv.de
+# msf.andywhv.de resolves through the zone's wildcard A record to this host and
+# is covered by the host's existing wildcard certificate (*.andywhv.de), which
+# is renewed manually via DNS-01; check its expiry with the other andywhv.de vhosts.
 server {
     listen 80;
+    listen [::]:80;
     server_name msf.andywhv.de;
     access_log /var/log/nginx/msf-access.log msf_safe;
     error_log /dev/null crit;
-    location ^~ /.well-known/acme-challenge/ {
-        root /var/www/letsencrypt;
-    }
-    location / {
-        return 308 https://msf.andywhv.de$uri;
-    }
+    return 308 https://msf.andywhv.de$uri;
 }
 server {
-    listen 443 ssl;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name msf.andywhv.de;
-    ssl_certificate /etc/letsencrypt/live/msf.andywhv.de/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/msf.andywhv.de/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_certificate /etc/letsencrypt/live/andywhv.de/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/andywhv.de/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     access_log /var/log/nginx/msf-access.log msf_safe;
     # nginx error context can include full query strings, even at crit severity.
     # Keep this vhost's error log disabled; use sanitized access/status + health.
