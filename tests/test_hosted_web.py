@@ -366,4 +366,6 @@ def test_home_explains_configured_connector_url_and_clients(setup):
     assert "ChatGPT" in text and "Claude" in text
     assert "developers.openai.com/plugins/deploy/connect-chatgpt" in text
     assert "claude.com/docs/connectors/custom/remote-mcp" in text
+    # Claude's dialog defaults to published identity (CIMD), which is unsupported.
+    assert "Automatisch registrieren" in text
     assert 'href="/privacy.html"' in text

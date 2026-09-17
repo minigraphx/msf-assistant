@@ -104,7 +104,7 @@ class HostedConfig:
             or parsed.query
             or parsed.fragment
             or any(c.isspace() for c in public)
-            or parsed.port not in (None, 443)
+            or parsed.port is not None
         ):
             raise ValueError("Public URL must be an HTTPS origin")
         public = public.rstrip("/")

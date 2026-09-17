@@ -15,6 +15,10 @@ from uuid import UUID, uuid4
 from msf_assistant.hosted_store import HostedStore
 
 MARKER = "RESTORE_MAINTENANCE"
+# Atomic writers (cli.write_snapshot, ContextStore) stage ".msf-*" files next to
+# their target before os.replace; a crash leaves them behind. Under the exclusive
+# maintenance lock none can be in flight, so they are skipped rather than fatal.
+STALE_WRITER_PREFIX = ".msf-"
 MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 MAX_MEMBERS = 20000
 AUTH_TABLES = (
@@ -68,7 +72,9 @@ def backup(store: HostedStore, directory: Path, *, retention: int = 7) -> Path:
             for player in (store.root / "players").iterdir():
                 store._check(player, directory=True)
                 for item in player.iterdir():
-                    if item.name == ".context.json.lock":
+                    if item.name == ".context.json.lock" or item.name.startswith(
+                        STALE_WRITER_PREFIX
+                    ):
                         store._file(item)
                         continue
                     name = item.relative_to(store.root).as_posix()

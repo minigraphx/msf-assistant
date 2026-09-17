@@ -134,13 +134,16 @@ Regularly test restoration on an isolated machine with network disabled.
 
 ## Restore, deletion reconciliation and rollback
 
-Close public access and stop the service before a disaster restore. Preserve the
-old state directory unchanged for rollback; **never extract over it**. Retrieve
-the verified archive and matching key. Set `MSF_HOSTED_DATA` to a new directory
-under `/data` for the one-off container:
+Close public access and stop the **systemd unit**, not just the container,
+before a disaster restore: the unit uses `Restart=always`, so a bare
+`docker compose stop` would be undone 30 s later, possibly mid-restore or before
+the rename below. Preserve the old state directory unchanged for rollback;
+**never extract over it**. Retrieve the verified archive and matching key. Set
+`MSF_HOSTED_DATA` to a new directory under `/data` for the one-off container:
 
 ```
-docker compose --env-file /etc/msf-assistant/hosted.env stop assistant
+systemctl stop msf-assistant.service
+systemctl is-active msf-assistant.service   # must print: inactive
 docker compose --env-file /etc/msf-assistant/hosted.env run --rm --no-deps \
   -e MSF_HOSTED_DATA=/data/restored-NEW assistant \
   restore /data/backups/SELECTED.tar --maintenance
@@ -158,9 +161,12 @@ Before reopening registration, reconcile **all account deletions after the
 backup date** using the operator's deletion records or a recoverable newer state.
 An old archive can otherwise resurrect an account that the player deleted.
 Keep those records private and retain only what is needed to enforce deletion.
-For each deleted UUID in the restored database, use `HostedStore.deactivate_player`
-and remove its `players/UUID` directory while holding `store.player_lock(UUID)`;
-all restored OAuth/browser state is already invalidated. Do this in an offline
+For each deleted UUID in the restored database, first enter
+`store.player_lock(UUID)` (it requires an *active* player and fails afterwards),
+then call `HostedStore.deactivate_player(UUID)` and remove its `players/UUID`
+directory while still holding that lock; all restored OAuth/browser state is
+already invalidated. Backups skip crash leftovers named `.msf-*` inside a player
+directory; remove them by hand during reconciliation if present. Do this in an offline
 operator session using the matching key file, never an SQL edit against a live
 service. If the deletion history is unavailable, do not reopen this restored
 state: start with a clean root and fresh registrations instead.
@@ -208,6 +214,8 @@ steps. Clients use automatic registration and OAuth/PKCE; players never supply
 MSF application secrets. Follow current official [ChatGPT setup](https://developers.openai.com/plugins/deploy/connect-chatgpt)
 and [Claude setup](https://claude.com/docs/connectors/custom/remote-mcp).
 Workspace policies and plans can restrict custom connectors. DCR is supported;
-CIMD fetching is not implemented. Protocol tests are not proof that the current
+CIMD fetching is not implemented, so when Claude's connector dialog offers
+"published identity" (its default), "register automatically" or "own client",
+players must choose **register automatically** — the help page says so. Protocol tests are not proof that the current
 real clients accept this deployment; complete both real-client acceptance tests
 before declaring release complete.

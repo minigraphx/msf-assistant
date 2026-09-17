@@ -246,7 +246,14 @@ def sync_saved(env_file: Path, output: Path) -> None:
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] == "hosted":
-        from msf_assistant.hosted_cli import main as hosted_main
+        try:
+            from msf_assistant.hosted_cli import main as hosted_main
+        except ImportError:
+            print(
+                "Hosted-Paket fehlt. Mit pip install -e '.[hosted]' installieren.",
+                file=sys.stderr,
+            )
+            return 1
         return hosted_main(argv[1:])
     args = _parser().parse_args(argv)
     try:

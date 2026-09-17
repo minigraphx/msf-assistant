@@ -203,7 +203,9 @@ def account_routes(store, provider, identity, public_url):
             '<a href="https://developers.openai.com/plugins/deploy/connect-chatgpt">'
             "Offizielle ChatGPT-Anleitung</a>.</li>"
             "<li><strong>Claude:</strong> Öffne Anpassen → Connectors → Eigenen Connector "
-            "hinzufügen. Trage die Adresse ein und melde dich an. "
+            "hinzufügen. Trage die Adresse ein. Fragt der Dialog nach dem OAuth-Client, "
+            "wähle „Automatisch registrieren“ (nicht die veröffentlichte Identität und "
+            "keinen eigenen Client). Danach melde dich an. "
             '<a href="https://claude.com/docs/connectors/custom/remote-mcp">'
             "Offizielle Claude-Anleitung</a>.</li></ol>"
             "<p>Der Client registriert sich automatisch. Melde dich im Browser bei deinem "

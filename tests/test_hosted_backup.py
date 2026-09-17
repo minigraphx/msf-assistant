@@ -131,6 +131,27 @@ def test_backup_retention_and_excludes_unexpected_files(tmp_path):
         backup(store, tmp_path / "backups")
 
 
+def test_backup_skips_stale_writer_temp_files_without_archiving_them(tmp_path):
+    """A crash between NamedTemporaryFile and os.replace must not block every backup."""
+    import tarfile
+
+    from msf_assistant.hosted_backup import backup
+
+    store = HostedStore(tmp_path / "data", Fernet.generate_key())
+    player = store.player("issuer", "subject")
+    directory = store.player_dir(player.id)
+    for name in (".msf-context-abc123", ".msf-xyz789"):
+        stale = directory / name
+        stale.write_text("half-written")
+        stale.chmod(0o600)
+    archive = backup(store, tmp_path / "backups")
+    with tarfile.open(archive, "r:") as tar:
+        names = tar.getnames()
+    assert names == ["hosted.sqlite3"]
+    # Skipped, not deleted: the operator decides what to do with crash leftovers.
+    assert (directory / ".msf-context-abc123").exists()
+
+
 def test_restore_rejects_wrong_key_schema_and_oversize(tmp_path, monkeypatch):
     import sqlite3
 
@@ -172,6 +193,22 @@ def test_restored_tokens_fail_and_fresh_grant_reads_preserved_data(tmp_path):
     )
     reopened = HostedOAuthProvider(restored, "https://msf.example")
     assert run(reopened.load_access_token(tokens.access_token)) is None
+    from starlette.testclient import TestClient
+
+    from msf_assistant.config import Settings
+    from msf_assistant.hosted_server import create_hosted_app
+
+    app = create_hosted_app(restored, reopened, object(), Settings("test"), "https://msf.example")
+    with TestClient(app, base_url="https://msf.example") as http:
+        response = http.post(
+            "/mcp",
+            headers={
+                "Authorization": "Bearer " + tokens.access_token,
+                "Accept": "application/json",
+            },
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+        )
+    assert response.status_code == 401
     assert run(reopened.load_refresh_token(client, tokens.refresh_token)) is None
     assert run(reopened.load_authorization_code(client, code)) is None
     with pytest.raises(ValueError):

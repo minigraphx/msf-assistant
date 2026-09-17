@@ -254,7 +254,8 @@ den tatsächlichen MCP-Protokollablauf einschließlich eines separaten Serverpro
 
 Der optionale HTTPS-Dienst trennt Spielerdaten anhand des verifizierten MSF-Kontos
 und verbindet ChatGPT/Claude über widerrufbare OAuth-Zugänge. Installation mit
-`pip install '.[hosted]'`; Einstieg: `python -m msf_assistant hosted --help`.
+`pip install '.[hosted]'`; Einstieg: `python -m msf_assistant hosted --help`
+(`hosted` muss das erste Argument sein; `--env-file` gilt nur für lokale Befehle).
 Die lokale stdio-Nutzung bleibt verfügbar.
 
 [Serverbetrieb, sichere Konfiguration, Backup und Wiederherstellung](docs/server-operations.md)

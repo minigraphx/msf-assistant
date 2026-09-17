@@ -32,6 +32,8 @@ def config_env(tmp_path):
         "https://user@msf.example",
         "https://msf.example?x=1",
         "https://msf.example/#bad",
+        "https://msf.example:443",
+        "https://msf.example:8443",
     ],
 )
 def test_invalid_public_origin(tmp_path, url):
@@ -39,7 +41,7 @@ def test_invalid_public_origin(tmp_path, url):
 
     env = config_env(tmp_path)
     env["MSF_PUBLIC_URL"] = url
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="HTTPS origin"):
         HostedConfig.from_env(env)
 
 
@@ -76,9 +78,72 @@ def test_generate_key_is_exclusive_private_and_never_printed(tmp_path):
 
 
 def test_local_help_does_not_import_hosted_dependencies():
-    code = 'import sys; from msf_assistant.cli import main; main(["--help"])'
+    code = (
+        "import sys; from msf_assistant.cli import main\n"
+        "try:\n    main(['--help'])\nexcept SystemExit:\n    pass\n"
+        "loaded = [m for m in ('cryptography', 'mcp', 'uvicorn', 'starlette',"
+        " 'msf_assistant.hosted_cli') if m in sys.modules]\n"
+        "print('LOADED=' + ','.join(loaded))"
+    )
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
-    assert result.returncode == 0
+    assert result.returncode == 0, result.stderr
+    assert "LOADED=\n" in result.stdout
+
+
+def test_hosted_without_extra_reports_missing_package_instead_of_traceback():
+    code = (
+        "import sys; sys.modules['cryptography'] = None\n"
+        "from msf_assistant.cli import main\n"
+        "sys.exit(main(['hosted', '--help']))"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert "Traceback" not in result.stderr
+    assert "hosted" in result.stderr and "pip install" in result.stderr
+
+
+def test_main_dispatches_backup_restore_and_resume(tmp_path, monkeypatch, capsys):
+    from msf_assistant.hosted_cli import main
+    from msf_assistant.hosted_store import HostedStore
+
+    env = config_env(tmp_path)
+    monkeypatch.setattr(os.path, "ismount", lambda p: True)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    HostedStore(tmp_path / "data", (tmp_path / "key").read_bytes()).player("issuer", "alice")
+
+    assert main(["backup", str(tmp_path / "backups")]) == 0
+    archive = capsys.readouterr().out.strip()
+    assert archive.startswith(str(tmp_path / "backups")) and os.path.exists(archive)
+
+    monkeypatch.setenv("MSF_HOSTED_DATA", str(tmp_path / "restored"))
+    assert main(["restore", archive, "--maintenance"]) == 0
+    assert "maintenance" in capsys.readouterr().out.lower()
+    assert (tmp_path / "restored" / "RESTORE_MAINTENANCE").exists()
+    # A second restore into the same root must be refused without touching it.
+    assert main(["restore", archive, "--maintenance"]) == 1
+    assert "must not exist" in capsys.readouterr().err
+    assert (tmp_path / "restored" / "RESTORE_MAINTENANCE").exists()
+
+    assert main(["resume", "--deletions-reconciled"]) == 0
+    assert not (tmp_path / "restored" / "RESTORE_MAINTENANCE").exists()
+    assert main(["backup", str(tmp_path / "restored" / "inside")]) == 1
+    assert "outside the data root" in capsys.readouterr().err
+
+
+def test_main_reports_corrupt_archive_without_details(tmp_path, monkeypatch, capsys):
+    from msf_assistant.hosted_cli import main
+
+    env = config_env(tmp_path)
+    monkeypatch.setattr(os.path, "ismount", lambda p: True)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    bogus = tmp_path / "bogus.tar"
+    bogus.write_bytes(b"not a tar archive")
+    assert main(["restore", str(bogus), "--maintenance"]) == 1
+    err = capsys.readouterr().err
+    assert err.strip() == "Hosted operation failed: invalid backup or database"
+    assert not (tmp_path / "data").exists()
 
 
 def test_serve_refuses_restore_marker_and_forces_one_worker(tmp_path, monkeypatch):
