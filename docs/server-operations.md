@@ -32,7 +32,7 @@ effect. Build on a separate machine for `linux/amd64`, not on the small server.
 | `/var/lib/msf-assistant/` | Dedicated persistent bind source, UID 10001, 0700 |
 | `/var/lib/msf-assistant/state/` | SQLite, encrypted tokens, player snapshots/context; 0700/0600 |
 | `/var/lib/msf-assistant/backups/` | Private local archives; 0700/0600 |
-| `/etc/nginx/conf.d/msf-assistant.conf` | New dedicated nginx vhost |
+| `/etc/nginx/sites-available/msf.andywhv.de` (+ `sites-enabled` symlink) | New dedicated nginx vhost |
 | `/etc/systemd/system/msf-assistant.service` | Reviewed systemd wrapper |
 
 `/var` must be a separately mounted filesystem. The systemd unit supervises attached Compose and restarts it after either clean
@@ -78,7 +78,7 @@ No package resolution or build happens at server startup.
 idempotently as root: service identity 10001, private directories, `hosted.env`
 (only if absent; otherwise only `MSF_IMAGE` is updated), a placeholder client
 secret, key generation inside the image, the systemd unit, a health wait and,
-with `--nginx`, the vhost behind `nginx -t`. It never prints secrets and never
+with `--nginx`, the vhost in `sites-available` plus its `sites-enabled` symlink behind `nginx -t`. It never prints secrets and never
 overwrites an existing key, secret or env file. Replace the placeholder
 `MSF_CLIENT_ID` and secret file after MSF app registration, then
 `systemctl restart msf-assistant.service`.

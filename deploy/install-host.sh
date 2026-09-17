@@ -85,12 +85,14 @@ echo "   health: $(curl -sS http://127.0.0.1:8000/health)"
 
 if [ "$WITH_NGINX" = "--nginx" ]; then
   echo "== nginx"
-  install -m 0644 -o root -g root "$STAGE/nginx.conf.example" /etc/nginx/conf.d/msf-assistant.conf
+  SITE=/etc/nginx/sites-available/msf.andywhv.de
+  install -m 0644 -o root -g root "$STAGE/nginx.conf.example" "$SITE"
+  ln -sfn "$SITE" /etc/nginx/sites-enabled/msf.andywhv.de
   if nginx -t; then
     systemctl reload nginx
   else
-    rm -f /etc/nginx/conf.d/msf-assistant.conf
-    echo "nginx config test failed; vhost removed, nginx untouched" >&2
+    rm -f /etc/nginx/sites-enabled/msf.andywhv.de
+    echo "nginx config test failed; site disabled, nginx untouched" >&2
     exit 1
   fi
 fi

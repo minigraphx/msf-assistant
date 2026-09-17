@@ -1,4 +1,5 @@
-# Include in nginx http{} (e.g. /etc/nginx/conf.d/msf-assistant.conf).
+# Install as /etc/nginx/sites-available/msf.andywhv.de and symlink it into
+# sites-enabled, matching the host's other vhosts.
 # Never use $request or $request_uri: OAuth callback queries contain secrets.
 log_format msf_safe '$remote_addr [$time_local] "$request_method $uri $server_protocol" '
                     '$status $body_bytes_sent';
