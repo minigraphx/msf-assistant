@@ -482,3 +482,12 @@ def test_failed_checks_log_their_constant_reason(setup, caplog):
     assert "/login failed: FlowError: Wrong origin" in messages
     assert "/login failed: FlowError: Invalid CSRF" in messages
     assert all("forged-secret-value" not in m for m in messages)
+
+
+def test_pages_keep_the_origin_header_on_same_origin_posts(setup):
+    """Referrer-Policy no-referrer makes browsers send `Origin: null` on form posts,
+    which the CSRF origin check would refuse; same-origin still hides the referrer
+    from Scopely and the AI clients after the redirects."""
+    _, _, _, browser = setup
+    for path in ("/", "/login", "/privacy.html"):
+        assert browser.get(path).headers["referrer-policy"] == "same-origin", path

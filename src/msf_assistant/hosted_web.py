@@ -74,7 +74,8 @@ def module_page(body, status=200, *, form_origins="", title=DEFAULT_SERVICE_NAME
             "Content-Security-Policy": (
                 "default-src 'none'; " + form_policy + "; frame-ancestors 'none'"
             ),
-            "Referrer-Policy": "no-referrer",
+            # Not no-referrer: that makes browsers send "Origin: null" on form posts.
+            "Referrer-Policy": "same-origin",
             "X-Content-Type-Options": "nosniff",
         },
     )
