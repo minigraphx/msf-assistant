@@ -25,6 +25,10 @@ __all__ = ["Operator", "account_routes", "page"]
 
 
 logger = logging.getLogger("msf_assistant.hosted")
+
+
+class FlowError(ValueError):
+    """A refused browser step; its message is a constant, safe to log, never user input."""
 # MSF API Terms of Use §2k: name Scopely as the source of the Data on every page,
 # without implying endorsement; no Scopely/Marvel marks in the title or URL.
 ATTRIBUTION = (
@@ -113,7 +117,7 @@ class BrowserSessions:
             if old:
                 db.execute("DELETE FROM browser_sessions WHERE hash=?", (digest(old),))
             if db.execute("SELECT count(*) FROM browser_sessions").fetchone()[0] >= MAX_SESSIONS:
-                raise ValueError("Session capacity")
+                raise FlowError("Session capacity")
             db.execute(
                 "INSERT INTO browser_sessions VALUES (?, ?, ?)",
                 (
@@ -126,7 +130,7 @@ class BrowserSessions:
 
     def read(self, raw, consume_state=None):
         if not raw:
-            raise ValueError("Missing session")
+            raise FlowError("Missing session")
         key = digest(raw)
         with self.store.transaction() as db:
             row = db.execute(
@@ -134,7 +138,7 @@ class BrowserSessions:
                 (key, time.time()),
             ).fetchone()
             if not row:
-                raise ValueError("Expired session")
+                raise FlowError("Expired session")
             payload = self.store.decrypt_private("browser:" + key, row[0])
             if consume_state is not None:
                 if (
@@ -142,7 +146,7 @@ class BrowserSessions:
                     or payload.get("state_expires", 0) <= time.time()
                     or not secrets.compare_digest(payload["state"], digest(consume_state))
                 ):
-                    raise ValueError("Invalid state")
+                    raise FlowError("Invalid state")
                 payload.pop("state")
                 db.execute(
                     "UPDATE browser_sessions SET encrypted=? WHERE hash=?",
@@ -162,7 +166,7 @@ class BrowserSessions:
                 (self.store.encrypt_private("browser:" + key, payload), key, time.time()),
             )
             if result.rowcount != 1:
-                raise ValueError("Expired session")
+                raise FlowError("Expired session")
         return state
 
 
@@ -194,24 +198,24 @@ def account_routes(
     async def post(request):
         payload = await session(request)
         if request.headers.get("origin") != origin:
-            raise ValueError("Wrong origin")
+            raise FlowError("Wrong origin")
         if int(request.headers.get("content-length", "0")) > 8192:
-            raise ValueError("Large form")
+            raise FlowError("Large form")
         if request.headers.get("content-type", "").split(";")[0] != (
             "application/x-www-form-urlencoded"
         ):
-            raise ValueError("Unsupported form")
+            raise FlowError("Unsupported form")
         body = bytearray()
         async for chunk in request.stream():
             if len(body) + len(chunk) > 8192:
-                raise ValueError("Large form")
+                raise FlowError("Large form")
             body.extend(chunk)
         data = FormData(parse_qsl(body.decode(), keep_blank_values=True, max_num_fields=16))
         if any(len(data.getlist(key)) != 1 for key in data):
-            raise ValueError("Duplicate fields")
+            raise FlowError("Duplicate fields")
         csrf = data.get("csrf", "")
         if not isinstance(csrf, str) or not secrets.compare_digest(csrf, payload["csrf"]):
-            raise ValueError("Invalid CSRF")
+            raise FlowError("Invalid CSRF")
         return payload, data
 
     async def home(request):
@@ -270,10 +274,10 @@ def account_routes(
 
     async def callback(request):
         if any(len(request.query_params.getlist(k)) != 1 for k in request.query_params):
-            raise ValueError("Duplicate callback")
+            raise FlowError("Duplicate callback")
         state, code = request.query_params.get("state"), request.query_params.get("code")
         if not state or not code or request.query_params.get("error"):
-            raise ValueError("Invalid callback")
+            raise FlowError("Invalid callback")
         old = request.cookies.get(COOKIE)
         payload = await run(sessions.read, old, state)
         issuer, subject, tokens = await run(identity.exchange, code)
@@ -297,7 +301,7 @@ def account_routes(
         payload = await session(request)
         request_id = request.query_params.get("request_id")
         if not request_id or request_id != payload.get("request_id") or not payload.get("player"):
-            raise ValueError("Wrong request binding")
+            raise FlowError("Wrong request binding")
         pending = await provider.pending_consent(request_id, payload["player"])
         if request.method == "POST":
             await post(request)
@@ -365,7 +369,7 @@ def account_routes(
     async def delete(request):
         payload, data = await post(request)
         if data.get("confirm") != "delete":
-            raise ValueError("Confirmation required")
+            raise FlowError("Confirmation required")
 
         def remove():
             player = payload["player"]
@@ -385,9 +389,12 @@ def account_routes(
             try:
                 return await handler(request)
             except Exception as exc:
-                # Operators get the route and exception class; never the message,
-                # which could carry upstream bodies, parameters or credentials.
-                logger.warning("%s failed: %s", request.url.path, type(exc).__name__)
+                # Operators get the route and exception class; the message only for
+                # our own constant FlowError texts, never upstream bodies or inputs.
+                reason = type(exc).__name__
+                if isinstance(exc, FlowError):
+                    reason += ": " + str(exc)
+                logger.warning("%s failed: %s", request.url.path, reason)
                 # No upstream response bodies, request parameters or credentials in HTML.
                 return page(
                     "<h1>Action not possible</h1><p>The sign-in or session is invalid or "
