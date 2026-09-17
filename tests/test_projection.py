@@ -53,8 +53,6 @@ def test_character_instance_requests_the_exact_build_without_metadata(client, se
 
 def test_character_instance_escapes_ids_and_rejects_out_of_range_builds(client, session):
     session.get.return_value.json.return_value = {"data": instance()}
-    client.character_instance("Ms Marvel/Kamala", level=1, yellow=1, red=0, gear_tier=1)
-    assert "characterInstances/Ms%20Marvel%2FKamala/1/1/0/1" in session.get.call_args.args[0]
     for bad in (
         dict(level=0, yellow=1, red=0, gear_tier=1),
         dict(level=1, yellow=8, red=0, gear_tier=1),
@@ -64,8 +62,11 @@ def test_character_instance_escapes_ids_and_rejects_out_of_range_builds(client, 
     ):
         with pytest.raises(ValueError):
             client.character_instance("Wolverine", **bad)
-    with pytest.raises(ValueError):
-        client.character_instance("", level=1, yellow=1, red=0, gear_tier=1)
+    for bad_id in ("", ".", "..", "a b", "x/y", "x?y", "x#y", "x%2Fy"):
+        with pytest.raises(ValueError):
+            client.character_instance(bad_id, level=1, yellow=1, red=0, gear_tier=1)
+    client.character_instance("Ms.Marvel_Kamala-2", level=1, yellow=1, red=0, gear_tier=1)
+    assert "characterInstances/Ms.Marvel_Kamala-2/1/1/0/1" in session.get.call_args.args[0]
 
 
 def test_project_character_returns_a_compact_build(client, session):
@@ -114,6 +115,9 @@ def test_project_character_all_gear_tiers_gives_a_bounded_curve(client, session)
         "text",
         {"power": "high"},
         {"power": 1, "stats": {"health": "lots"}},
+        {"power": 1, "stats": {"health": float("nan")}},
+        {"power": 1, "stats": {"health": True}},
+        {"power": True, "stats": {}},
         {"power": 1, "stats": "csv"},
         {"power": 1, "stats": {}, "basic": "max"},
         [],
@@ -123,6 +127,14 @@ def test_project_character_rejects_malformed_upstream_data(client, session, data
     session.get.return_value.json.return_value = {"data": data}
     with pytest.raises(MSFAPIError):
         project_character(client, "Wolverine", level=90, yellow=7, red=7, gear_tier=17)
+
+
+def test_project_character_accepts_fractional_stats(client, session):
+    session.get.return_value.json.return_value = {
+        "data": instance(stats={"critChance": 12.5, "health": 10})
+    }
+    result = project_character(client, "Wolverine", level=90, yellow=7, red=7, gear_tier=17)
+    assert result["builds"][0]["stats"] == {"critChance": 12.5, "health": 10}
 
 
 def test_project_character_needs_only_the_character_instance_call(settings):

@@ -18,7 +18,7 @@ import requests
 from msf_assistant.auth import MSFOAuth2, TokenSet
 from msf_assistant.client import MSFAPIClient, MSFAPIError
 from msf_assistant.config import Settings
-from msf_assistant.live_query import QUERY_BYTES, CredentialsRejected, run_query
+from msf_assistant.live_query import QUERY_BYTES, CredentialsRejected, QueryUnavailable, run_query
 from msf_assistant.login import LoginError, browser_login
 from msf_assistant.operation_lock import SyncError, operation_lock
 from msf_assistant.snapshot import SnapshotError, validate_snapshot
@@ -246,16 +246,23 @@ def sync_saved(env_file: Path, output: Path) -> None:
 
 
 def query_saved(env_file: Path, fn: Callable[[MSFAPIClient], Any]) -> Any:
-    """MCP live-query path: stored credentials only, one bounded call, refresh on 401."""
-    settings = Settings.from_env(str(env_file))
-    store = KeychainTokenStore(settings.client_id, settings.oauth_base_url)
-    tokens = store.load()
-    if tokens is None:
-        raise LoginError("Keine gespeicherte Anmeldung. Zuerst login ausführen.")
+    """MCP live-query path: stored credentials only, one bounded call, refresh on 401.
+
+    Shares the account lock with login/sync/logout: refresh tokens are single-use
+    and the keychain item must not be rotated or resurrected concurrently.
+    """
     try:
-        return run_query(settings, tokens, fn, save_tokens=store.save, max_bytes=QUERY_BYTES)
+        with operation_lock(env_file):
+            settings = Settings.from_env(str(env_file))
+            store = KeychainTokenStore(settings.client_id, settings.oauth_base_url)
+            tokens = store.load()
+            if tokens is None:
+                raise QueryUnavailable("Keine gespeicherte Anmeldung. Zuerst login ausführen.")
+            return run_query(settings, tokens, fn, save_tokens=store.save, max_bytes=QUERY_BYTES)
+    except SyncError as exc:
+        raise QueryUnavailable(str(exc)) from None
     except CredentialsRejected:
-        raise LoginError("MSF-Anmeldung abgelaufen. Bitte login erneut starten.") from None
+        raise QueryUnavailable("MSF-Anmeldung abgelaufen. Bitte login erneut starten.") from None
 
 
 def main(argv: list[str] | None = None) -> int:

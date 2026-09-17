@@ -6,7 +6,7 @@ import pytest
 import requests
 
 from msf_assistant.auth import TokenSet
-from msf_assistant.live_query import CredentialsRejected, run_query
+from msf_assistant.live_query import CredentialsRejected, RefreshFailed, run_query
 
 
 def http_error(status):
@@ -92,6 +92,29 @@ def test_query_does_not_refresh_on_other_http_errors(settings, monkeypatch):
         with pytest.raises(requests.HTTPError) as failure:
             run_query(settings, TokenSet("a", refresh_token="r"), failing, save_tokens=Mock())
         assert not isinstance(failure.value, CredentialsRejected)
+
+
+def test_refresh_uses_its_own_session_and_reports_transport_failures(settings, monkeypatch):
+    from msf_assistant import live_query
+
+    sessions = []
+
+    def refresh(self, token):
+        sessions.append(self.session)
+        raise http_error(404)
+
+    monkeypatch.setattr(live_query.MSFOAuth2, "refresh", refresh)
+    api_sessions = []
+
+    def fn(client):
+        api_sessions.append(client.session)
+        raise http_error(401)
+
+    with pytest.raises(RefreshFailed):
+        run_query(settings, TokenSet("a", refresh_token="r"), fn, save_tokens=Mock())
+    # The API session carries Bearer/x-api-key headers; the token endpoint must not see them.
+    assert sessions and sessions[0] is not api_sessions[0]
+    assert "x-api-key" not in sessions[0].headers
 
 
 def test_query_bounds_the_response_budget(settings):

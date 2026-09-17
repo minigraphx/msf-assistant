@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 from typing import Any
 
@@ -45,11 +46,11 @@ def project_character(
 
 def compact_build(row: Any) -> dict[str, Any]:
     """Keep only build coordinates, ability levels, stats and power, all type-checked."""
-    if not isinstance(row, dict) or not _is_int(row.get("power")):
+    if not isinstance(row, dict) or not _is_number(row.get("power")):
         raise MSFAPIError("MSF projection response is invalid")
     stats = row.get("stats")
     if not isinstance(stats, dict) or not all(
-        isinstance(key, str) and _is_int(value) for key, value in stats.items()
+        isinstance(key, str) and _is_number(value) for key, value in stats.items()
     ):
         raise MSFAPIError("MSF projection stats are invalid")
     coordinates = {name: row.get(source) for name, source in BUILD_FIELDS.items()}
@@ -62,3 +63,7 @@ def compact_build(row: Any) -> dict[str, Any]:
 
 def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_number(value: Any) -> bool:
+    return _is_int(value) or (isinstance(value, float) and math.isfinite(value))

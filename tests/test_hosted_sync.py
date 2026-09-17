@@ -430,3 +430,28 @@ def test_query_404_names_the_id_and_other_statuses_stay_generic(tmp_path):
         sync.query(player.id, failing(404))
     with pytest.raises(hosted_sync.HostedSyncError, match="MSF query failed"):
         sync.query(player.id, failing(403))
+
+
+def test_query_persists_renewed_tokens_after_401(tmp_path, monkeypatch):
+    import requests
+
+    from msf_assistant import hosted_sync
+
+    store = HostedStore(tmp_path / "private", Fernet.generate_key())
+    player = store.player("issuer", "alice")
+    store.save_tokens(player.id, TokenSet("stale", refresh_token="keep"))
+    monkeypatch.setattr(hosted_sync.MSFOAuth2, "refresh", lambda self, token: TokenSet("fresh"))
+    calls = []
+
+    def fn(client):
+        calls.append(client.session.headers["Authorization"])
+        if len(calls) == 1:
+            response = requests.Response()
+            response.status_code = 401
+            raise requests.HTTPError(response=response)
+        return {"ok": True}
+
+    assert hosted_sync.HostedSync(store, Settings("test")).query(player.id, fn) == {"ok": True}
+    assert calls == ["Bearer stale", "Bearer fresh"]
+    stored = store.load_tokens(player.id)
+    assert stored.access_token == "fresh" and stored.refresh_token == "keep"

@@ -21,6 +21,14 @@ class CredentialsRejected(RuntimeError):
     """The stored sign-in no longer works; the player has to sign in again."""
 
 
+class RefreshFailed(RuntimeError):
+    """The token endpoint failed for a reason other than rejected credentials."""
+
+
+class QueryUnavailable(RuntimeError):
+    """A live query could not run; the message is constant and player-facing."""
+
+
 def run_query(
     settings: Settings,
     tokens: TokenSet,
@@ -39,14 +47,7 @@ def run_query(
                 raise
             if not tokens.refresh_token:
                 raise CredentialsRejected from None
-        try:
-            renewed = MSFOAuth2(
-                settings, session=session, max_response_bytes=TOKEN_RESPONSE_BYTES
-            ).refresh(tokens.refresh_token)
-        except requests.HTTPError as exc:
-            if _status(exc) in REFRESH_REJECTED:
-                raise CredentialsRejected from None
-            raise
+        renewed = _refresh(settings, tokens.refresh_token)
         renewed = replace(renewed, refresh_token=renewed.refresh_token or tokens.refresh_token)
         save_tokens(renewed)
         try:
@@ -55,6 +56,21 @@ def run_query(
             if _status(exc) == 401:
                 raise CredentialsRejected from None
             raise
+
+
+def _refresh(settings: Settings, refresh_token: str) -> TokenSet:
+    # Own session: the API session carries the bearer token and API key headers.
+    try:
+        with requests.Session() as session:
+            return MSFOAuth2(
+                settings, session=session, max_response_bytes=TOKEN_RESPONSE_BYTES
+            ).refresh(refresh_token)
+    except requests.HTTPError as exc:
+        if _status(exc) in REFRESH_REJECTED:
+            raise CredentialsRejected from None
+        raise RefreshFailed from None
+    except requests.RequestException:
+        raise RefreshFailed from None
 
 
 def _status(exc: requests.HTTPError) -> int | None:

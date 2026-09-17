@@ -532,7 +532,7 @@ def test_write_tools_match_registered_annotations():
     from msf_assistant.mcp_server import AdvisorServer, register_tools
 
     server = AdvisorServer("t", version="0", instructions="", log_level="WARNING")
-    register_tools(server, object(), object(), refresh=lambda: None)
+    register_tools(server, object(), object(), refresh=lambda: None, query=lambda fn: None)
     tools = asyncio.run(server.list_tools())
     writes = {t.name for t in tools if not t.annotations.read_only_hint}
     assert writes == set(hosted_server.WRITE_TOOLS)

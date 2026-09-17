@@ -294,7 +294,7 @@ def test_serve_offers_live_queries_unless_read_only(tmp_path, monkeypatch):
 
 
 def test_query_saved_uses_stored_tokens_and_reports_expired_login(environment, monkeypatch):
-    from msf_assistant.live_query import CredentialsRejected
+    from msf_assistant.live_query import CredentialsRejected, QueryUnavailable
 
     api, login, store, factory, oauth, output = environment
     seen = []
@@ -309,11 +309,20 @@ def test_query_saved_uses_stored_tokens_and_reports_expired_login(environment, m
         raise CredentialsRejected
 
     monkeypatch.setattr(cli, "run_query", rejected)
-    with pytest.raises(cli.LoginError, match="login"):
+    with pytest.raises(QueryUnavailable, match="login"):
         cli.query_saved(Path(".env"), lambda client: None)
     store.load.return_value = None
-    with pytest.raises(cli.LoginError, match="login"):
+    with pytest.raises(QueryUnavailable, match="login"):
         cli.query_saved(Path(".env"), lambda client: None)
+
+
+def test_query_saved_serialises_with_other_token_operations(environment, tmp_path):
+    from msf_assistant.live_query import QueryUnavailable
+    from msf_assistant.operation_lock import operation_lock
+
+    env_file = tmp_path / ".env"
+    with operation_lock(env_file), pytest.raises(QueryUnavailable, match="läuft bereits"):
+        cli.query_saved(env_file, lambda client: pytest.fail("must not run while locked"))
 
 
 def test_operation_lock_rejects_concurrent_writer(tmp_path):
