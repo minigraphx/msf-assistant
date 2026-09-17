@@ -92,10 +92,10 @@ flagged stale. The catalog is fetched in small pages because MSF rejects large
 responses with full ability data. The prompt `plan_upgrades` takes a concrete
 game question; the advisory instructions are also sent at initialization.
 
-More (German): [advisor guide](docs/advisor-guide.md),
-[connection guide](docs/chatgpt-connection.md),
+More: [advisor guide](docs/advisor-guide.md),
+[connecting the local server](docs/chatgpt-connection.md),
 [data coverage](docs/data-coverage.md),
-[local acceptance checklist](docs/advisor-acceptance.md).
+[acceptance checklist](docs/advisor-acceptance.md).
 
 ## Hosted mode (self-hosting for several players)
 

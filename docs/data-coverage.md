@@ -1,46 +1,45 @@
-# Datenabdeckung der Beratung
+# Data coverage of the advice
 
-Geprüft am 14. September 2026 anhand des Clients und der Feldnamen des lokalen
-Snapshots. Persönliche Werte werden hier nicht veröffentlicht.
+Checked on 14 September 2026 against the client and the field names of a local
+snapshot. No personal values are published here.
 
-| Bereich | Im Assistant vorhanden | Grenze |
+| Area | Available in the assistant | Limit |
 | --- | --- | --- |
-| Profil | Level, Gesamtstärke, stärkstes Team, Sammlungszähler | Keine vollständige Spielhistorie |
-| Roster | Charakter-ID, Level, gearTier, Sterne, Fähigkeiten, ISO, Stärke | Stärke beweist weder Eignung für jeden Modus noch einen Event-Abschluss |
-| Inventar | Gegenstand und Menge | Begrenzt die Ausbauplanung dieser Version nicht |
-| Katalog | Namen, Eigenschaften, Fähigkeiten, Freischaltsterne, Status | Keine aktuelle Meta-Bewertung; kein Nachweis eines kostenlosen Freischaltwegs |
-| Beratungskontext | Gespeicherte Nutzerangaben, Ziele, Empfehlungen und Quellen | Angaben sind mit ihrer Herkunft zu lesen, nicht als zusätzliche API-Beweise |
-| Events / Dark Dimension | Im Snapshot nicht enthalten | Fortschritt bleibt unbekannt, bis eine belastbare Angabe vorliegt |
+| Profile | level, total power, strongest team, collection counters | no full game history |
+| Roster | character id, level, gearTier, stars, abilities, ISO, power | power proves neither suitability for every mode nor an event completion |
+| Inventory | item and quantity | does not cap upgrade planning in this version |
+| Catalog | names, traits, abilities, unlock stars, status | no current meta rating; no proof of a free unlock path |
+| Advisor context | stored player facts, goals, recommendations and sources | read with their provenance, not as additional API evidence |
+| Events / Dark Dimension | not in the snapshot | progress stays unknown until a reliable statement exists |
 
-## Was die API zusätzlich beschreibt
+## What the API describes in addition
 
-Die [offizielle API-Spezifikation](https://developer.marvelstrikeforce.com/beta/msf-api.json)
-(beta 0.2.1, geprüft am 14. September 2026) beschreibt
-`/player/v1/events` und `/player/v1/events/{eventId}` mit dem zusätzlichen
-Scope `m3p.f.pr.act`. Sie liefern qualifizierende Events samt Fortschritt.
-`Objective.progress` kann abgeschlossene Stufen, Punkte und Wiederholungen enthalten;
-bei Raids bezeichnet es Allianzfortschritt. `/game/v1/events` liefert allgemeine
-Eventinformationen.
+The [official API specification](https://developer.marvelstrikeforce.com/beta/msf-api.json)
+(beta 0.2.1, checked on 14 September 2026) describes `/player/v1/events` and
+`/player/v1/events/{eventId}` with the additional scope `m3p.f.pr.act`. They
+return qualifying events with progress; `Objective.progress` may contain
+completed tiers, points and repetitions, and for raids it denotes alliance
+progress. `/game/v1/events` returns general event information.
 
-Diese Routen werden vom aktuellen Client nicht abgefragt; der zusätzliche Scope
-wird beim Login nicht angefordert. Ein lückenloses, dauerhaftes DD-/Legendary-
-Abschlussarchiv ist damit nicht nachgewiesen. Eine fehlende Event-Zeile wäre kein
-Beleg für „nicht abgeschlossen“.
+The current client does not query these routes and does not request the
+additional scope at login. A complete, permanent archive of DD/Legendary
+completions is therefore not proven. A missing event row would not be evidence
+of "not completed".
 
-## Konsequenz für die Beratung
+## Consequence for the advice
 
-Unbekannte Abschlüsse werden bei konkretem Bedarf erfragt und als Nutzerangabe
-mit Zeitpunkt gespeichert. Bestehende Aussagen dürfen korrigiert werden. Ein
-entsprechender Roster, Besitz eines Charakters oder hohe Stärke ersetzt diesen
-Nachweis nicht. Für widersprüchliche Angaben gezielt nachfragen.
+Unknown completions are asked for when they matter and stored as a player fact
+with a timestamp. Existing statements may be corrected. A matching roster,
+ownership of a character or high power does not replace this evidence. Ask
+specifically about contradictory statements.
 
-## Frische
+## Freshness
 
-`get_status` meldet den Abrufstand und einen separaten Katalog-Zeitstempel. Bei
-Nutzung eines fehlenden oder über 24 Stunden alten Datenstands soll der
-angebundene Assistent einmal `refresh_data` aufrufen, sofern das Werkzeug
-verfügbar und die Aktion im Host erlaubt ist. Fehler offenlegen; danach mit
-gekennzeichnetem Altstand arbeiten oder gezielt die fehlenden Angaben erfragen.
-Ein ausdrücklich gewünschter Refresh ist jederzeit möglich. Kein automatischer
-Hintergrunddienst ist eingerichtet. Im Nur-Lesen-Modus ist ein lokales `sync`
-erforderlich.
+`get_status` reports the retrieval state and a separate catalog timestamp. When
+data is missing or older than 24 hours the connected assistant should call
+`refresh_data` once, provided the tool is available and the host allows the
+action. Disclose failures; then work with the marked old state or ask for the
+missing information. An explicitly requested refresh is possible at any time.
+No automatic background service is set up. In read-only mode a local `sync` is
+required; in the hosted service, game data expires after 30 days and must be
+refreshed.
