@@ -20,6 +20,16 @@ from msf_assistant.advisor_instructions import (
     TASK_PROMPTS,
     TaskPrompt,
 )
+from msf_assistant.client import (
+    CHARACTER_ID,
+    MAX_GEAR_TIER,
+    MAX_LEVEL,
+    MAX_RED,
+    MAX_YELLOW,
+    MSFAPIError,
+)
+from msf_assistant.live_query import QueryUnavailable
+from msf_assistant.projection import project_character as run_projection
 from msf_assistant.snapshot import SnapshotError, SnapshotReader
 
 Offset = Annotated[int, Field(ge=0, strict=True)]
@@ -32,6 +42,28 @@ Summary = Annotated[str, Field(min_length=1, max_length=10_000)]
 Timestamp = Annotated[str, Field(min_length=1, max_length=64)]
 ExpectedRevision = Annotated[int, Field(ge=0, strict=True)]
 FactValue = str | int | float | bool | None
+CharacterId = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=200,
+        pattern=CHARACTER_ID.pattern,
+        description="Exact character ID from the roster or catalog",
+    ),
+]
+Level = Annotated[int, Field(ge=1, le=MAX_LEVEL, strict=True, description="Character level")]
+Yellow = Annotated[
+    int, Field(ge=1, le=MAX_YELLOW, strict=True, description="Yellow stars (1-7)")
+]
+Red = Annotated[
+    int,
+    Field(ge=0, le=MAX_RED, strict=True, description="Red stars (0-7); 8-10 are 1-3 diamonds"),
+]
+GearTier = Annotated[
+    Annotated[int, Field(ge=1, le=MAX_GEAR_TIER, strict=True)] | Literal["all"],
+    Field(description='Gear tier, or "all" for the whole gear curve'),
+]
+QueryRunner = Callable[[Callable[[Any], Any]], Any]
 PLAN_UPGRADES_DESCRIPTION = (
     "Plan roster-based upgrades with saved goals and research in the connected host."
 )
@@ -86,8 +118,9 @@ def create_server(
     refresh: Callable[[], None] | None = None,
     context_path: Path | None = None,
     read_only: bool = False,
+    query: QueryRunner | None = None,
 ) -> MCPServer:
-    """Create a server over one owner's fixed snapshot, with optional explicit refresh."""
+    """Create a server over one owner's fixed snapshot, with optional refresh and live queries."""
     reader = SnapshotReader(snapshot)
     context = ContextStore(context_path or snapshot.parent / "msf-advisor-context.json")
     server = AdvisorServer(
@@ -96,7 +129,9 @@ def create_server(
         instructions=ADVISOR_INSTRUCTIONS,
         log_level="WARNING",
     )
-    return register_tools(server, reader, context, refresh=refresh, read_only=read_only)
+    return register_tools(
+        server, reader, context, refresh=refresh, read_only=read_only, query=query
+    )
 
 
 @dataclass(frozen=True)
@@ -108,24 +143,41 @@ class ToolMessages:
         "Aktualisierung fehlgeschlagen. Lokal sync --characters ausführen; "
         "bei abgelaufener Anmeldung login starten. Vorherige Daten bleiben erhalten."
     )
+    query_failed: str = (
+        "MSF-Abfrage fehlgeschlagen. Verbindung prüfen; bei abgelaufener Anmeldung "
+        "login erneut starten."
+    )
     # Exceptions of this type carry a safe, already player-facing message.
-    passthrough: type[BaseException] | None = None
+    passthrough: type[BaseException] | None = QueryUnavailable
 
     def refresh_error(self, exc: BaseException) -> str:
+        return self._safe(exc, self.refresh_failed)
+
+    def query_error(self, exc: BaseException) -> str:
+        return self._safe(exc, self.query_failed)
+
+    def _safe(self, exc: BaseException, fallback: str) -> str:
         if self.passthrough is not None and isinstance(exc, self.passthrough):
             return str(exc)
-        return self.refresh_failed
+        return fallback
 
 
 def register_tools(
     server: AdvisorServer, reader: Any, context: Any, *,
     refresh: Callable[[], None] | None = None, read_only: bool = False,
-    messages: ToolMessages | None = None,
+    messages: ToolMessages | None = None, query: QueryRunner | None = None,
 ) -> MCPServer:
-    """Bind the unchanged tool definitions to local or request-scoped backends."""
+    """Bind the unchanged tool definitions to local or request-scoped backends.
+
+    ``query`` runs ``fn(client)`` against MSF with the owner's credentials; live
+    read tools are only offered when it is given and the server is not read-only.
+    """
     messages = messages or ToolMessages()
     read = ToolAnnotations(
         read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False
+    )
+    live_read = ToolAnnotations(
+        read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=True
     )
     write = ToolAnnotations(
         read_only_hint=False,
@@ -207,6 +259,29 @@ def register_tools(
     def get_advisor_context() -> dict[str, Any]:
         """Read saved goals, facts and recommendations plus the revision every save needs."""
         return safe_context_call(context.read)
+
+    if query is not None and not read_only:
+
+        @server.tool(annotations=live_read)
+        def project_character(
+            character_id: CharacterId, level: Level, yellow: Yellow, red: Red, gear_tier: GearTier
+        ) -> dict[str, Any]:
+            """Project stats/power of a hypothetical build via a live MSF call."""
+            try:
+                return query(
+                    lambda client: run_projection(
+                        client,
+                        character_id,
+                        level=level,
+                        yellow=yellow,
+                        red=red,
+                        gear_tier=gear_tier,
+                    )
+                )
+            except MSFAPIError as exc:
+                raise ToolError(str(exc)) from None
+            except Exception as exc:
+                raise ToolError(messages.query_error(exc)) from None
 
     if not read_only:
 

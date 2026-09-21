@@ -356,3 +356,70 @@ async def test_stdio_context_symlink_is_refused(snapshot, tmp_path):
         result = await client.call_tool("get_advisor_context", {})
         assert result.is_error
         assert "private-value" not in result.model_dump_json()
+
+
+@pytest.mark.anyio
+async def test_project_character_runs_a_live_query_and_is_read_only(snapshot):
+    from msf_assistant.client import MSFAPIClient
+
+    seen = []
+
+    def query(fn):
+        seen.append(fn)
+        client = type("FakeClient", (), {})()
+        client.character_instance = lambda *a, **k: {
+            "data": {"gearTier": 18, "power": 4200, "stats": {"health": 5}, "basic": 7}
+        }
+        assert not isinstance(client, MSFAPIClient)
+        return fn(client)
+
+    async with Client(create_server(snapshot, query=query), raise_exceptions=True) as client:
+        tools = {tool.name: tool for tool in (await client.list_tools()).tools}
+        tool = tools["project_character"]
+        assert tool.annotations.read_only_hint
+        assert tool.annotations.open_world_hint  # contacts MSF
+        assert not tool.annotations.destructive_hint
+        result = await client.call_tool(
+            "project_character",
+            {"character_id": "Wolverine", "level": 90, "yellow": 7, "red": 7, "gear_tier": 18},
+        )
+        assert not result.is_error, result
+        build = result.structured_content["builds"][0]
+        assert build["gear_tier"] == 18 and build["power"] == 4200
+        assert result.structured_content["character_id"] == "Wolverine"
+        curve = await client.call_tool(
+            "project_character",
+            {"character_id": "Wolverine", "level": 90, "yellow": 7, "red": 7, "gear_tier": "all"},
+        )
+        assert not curve.is_error, curve
+        for bad in (
+            {"character_id": "", "level": 90, "yellow": 7, "red": 7, "gear_tier": 18},
+            {"character_id": "W", "level": 0, "yellow": 7, "red": 7, "gear_tier": 18},
+            {"character_id": "W", "level": 90, "yellow": 8, "red": 7, "gear_tier": 18},
+            {"character_id": "W", "level": 90, "yellow": 7, "red": 11, "gear_tier": 18},
+            {"character_id": "W", "level": 90, "yellow": 7, "red": 7, "gear_tier": "some"},
+            {"character_id": "W", "level": 90, "yellow": 7, "red": 7, "gear_tier": 0},
+        ):
+            assert (await client.call_tool("project_character", bad)).is_error, bad
+    assert len(seen) == 2
+
+
+@pytest.mark.anyio
+async def test_project_character_is_absent_without_query_and_sanitizes_failures(snapshot):
+    async with Client(create_server(snapshot), raise_exceptions=True) as client:
+        assert "project_character" not in {t.name for t in (await client.list_tools()).tools}
+    async with Client(create_server(snapshot, read_only=True, query=lambda fn: fn(None))) as client:
+        assert "project_character" not in {t.name for t in (await client.list_tools()).tools}
+
+    def failing(fn):
+        raise RuntimeError("secret-upstream-body")
+
+    async with Client(create_server(snapshot, query=failing)) as client:
+        result = await client.call_tool(
+            "project_character",
+            {"character_id": "Wolverine", "level": 90, "yellow": 7, "red": 7, "gear_tier": 18},
+        )
+        assert result.is_error
+        text = result.model_dump_json()
+        assert "secret-upstream-body" not in text
+        assert "login" in text  # local remedy

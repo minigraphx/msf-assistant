@@ -83,6 +83,7 @@ in the browser URL or API headers; token requests do not follow redirects.
 | `get_inventory` | items and quantities, search by id/name |
 | `get_game_characters` | compact catalog with name search |
 | `get_character` | catalog entry plus your own build for one character id |
+| `project_character` | projected stats/power of a hypothetical build, or the gear curve (live MSF call) |
 | `refresh_data` | fetch fresh data from MSF (write tool) |
 | `get_advisor_context` | stored goals, facts, plans and revision |
 | `save_goal`, `save_player_fact`, `save_recommendation`, `delete_advisor_record` | maintain the advisor context |

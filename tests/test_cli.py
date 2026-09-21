@@ -1,6 +1,7 @@
 import json
 import os
 import stat
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -277,9 +278,51 @@ def test_serve_passes_context_and_read_only_to_server(tmp_path, monkeypatch):
     )
 
     create_server.assert_called_once_with(
-        snapshot.resolve(), refresh=None, context_path=context.resolve(), read_only=True
+        snapshot.resolve(), refresh=None, context_path=context.resolve(), read_only=True, query=None
     )
     server.run.assert_called_once_with(transport="stdio")
+
+
+def test_serve_offers_live_queries_unless_read_only(tmp_path, monkeypatch):
+    import msf_assistant.mcp_server
+
+    create_server = Mock(return_value=Mock())
+    monkeypatch.setattr(msf_assistant.mcp_server, "create_server", create_server)
+    assert cli.main(["serve", "--snapshot", str(tmp_path / "snapshot.json")]) == 0
+    kwargs = create_server.call_args.kwargs
+    assert callable(kwargs["refresh"]) and callable(kwargs["query"])
+
+
+def test_query_saved_uses_stored_tokens_and_reports_expired_login(environment, monkeypatch):
+    from msf_assistant.live_query import CredentialsRejected, QueryUnavailable
+
+    api, login, store, factory, oauth, output = environment
+    seen = []
+    monkeypatch.setattr(
+        cli, "run_query", lambda settings, tokens, fn, *, save_tokens, max_bytes=None:
+        seen.append((tokens.access_token, save_tokens)) or fn("client")
+    )
+    assert cli.query_saved(Path(".env"), lambda client: client + " used") == "client used"
+    assert seen[0][0] == "private-access" and seen[0][1] == store.save
+
+    def rejected(*args, **kwargs):
+        raise CredentialsRejected
+
+    monkeypatch.setattr(cli, "run_query", rejected)
+    with pytest.raises(QueryUnavailable, match="login"):
+        cli.query_saved(Path(".env"), lambda client: None)
+    store.load.return_value = None
+    with pytest.raises(QueryUnavailable, match="login"):
+        cli.query_saved(Path(".env"), lambda client: None)
+
+
+def test_query_saved_serialises_with_other_token_operations(environment, tmp_path):
+    from msf_assistant.live_query import QueryUnavailable
+    from msf_assistant.operation_lock import operation_lock
+
+    env_file = tmp_path / ".env"
+    with operation_lock(env_file), pytest.raises(QueryUnavailable, match="läuft bereits"):
+        cli.query_saved(env_file, lambda client: pytest.fail("must not run while locked"))
 
 
 def test_operation_lock_rejects_concurrent_writer(tmp_path):
