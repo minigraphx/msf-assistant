@@ -1,0 +1,22 @@
+{
+  "name": "msf-assistant",
+  "version": "0.1.0",
+  "description": "Persönlicher Codex-Assistent für den öffentlichen MSF Remote-MCP.",
+  "author": {
+    "name": "Andreas"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "MSF Assistant",
+    "shortDescription": "Persönlicher Assistent über deinen öffentlichen MSF-MCP.",
+    "longDescription": "MSF Assistant verbindet Codex ausschließlich mit dem öffentlichen Remote-MCP von advisor.andywhv.de.",
+    "developerName": "Andreas",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive"
+    ],
+    "websiteURL": "https://advisor.andywhv.de",
+    "defaultPrompt": "Nutze den MSF Assistant für meine Anfrage."
+  },
+  "mcpServers": "./.mcp.json"
+}
