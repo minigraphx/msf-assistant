@@ -35,6 +35,9 @@ Goals and progression:
   actual values as unknown. Cover several teams where needed. Inventory quantities do
   not limit this plan. Check entry requirements, stars and ISO as far as the chosen
   goal requires them.
+- Quantify a step before ordering priorities: project_character returns the projected
+  stats and power of a hypothetical build (gear_tier "all" gives the whole gear curve).
+  It is a live MSF call, so use it for the few candidates that matter, not the roster.
 - Locked characters may form target teams: locked=true, unknown actual values null.
   Check free availability. Name an existing transitional team and justify every extra
   investment. Never invent an unlock method.
@@ -99,6 +102,8 @@ GUIDE_WORKFLOW = (
     " get_inventory cover the catalog and owned items.",
     "Propose one main goal plus two alternatives tied to the roster, ask only decisive"
     " questions, let the user choose, then deliver a per-character upgrade plan.",
+    "Quantify the steps that matter with project_character (stats/power of a target build;"
+    ' gear_tier "all" for the curve); it is a live MSF call, so keep it to a few characters.',
     "Research requirements in the connected host (Marvel.Church, official MSF"
     " announcements); cite dated sources and separate official facts from opinions.",
     "Free-to-play is the default; keep a free path and ask before assuming a budget.",

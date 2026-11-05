@@ -36,7 +36,9 @@ contradictions and uncertainty stay visible. Without research there is no claim
 about the current meta.
 
 After you pick a goal, the plan lists per character: team, current level and
-gear, target level and target gear tier, priority and reasoning. Material stock
+gear, target level and target gear tier, priority and reasoning. For the steps
+that matter the assistant can quantify the gain with `project_character`
+(projected stats and power at the target build, or the whole gear curve). Material stock
 does not cap the goal. Locked characters, sensible transition teams and reasoned
 detours are taken into account. A paid option stays separate from the free path.
 Missing information is only requested when needed; a strong roster does not

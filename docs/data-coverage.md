@@ -11,6 +11,17 @@ snapshot. No personal values are published here.
 | Catalog | names, traits, abilities, unlock stars, status | no current meta rating; no proof of a free unlock path |
 | Advisor context | stored player facts, goals, recommendations and sources | read with their provenance, not as additional API evidence |
 | Events / Dark Dimension | not in the snapshot | progress stays unknown until a reliable statement exists |
+| Build projection | live query `project_character` (`/game/v1/characterInstances`) | projected stats and power for a hypothetical level/stars/gear build, or the whole gear curve with `gear_tier: "all"`; not stored |
+
+## Live queries
+
+`project_character` is the first tool that contacts MSF at question time
+instead of reading the snapshot. It runs with the player's stored sign-in
+(refreshing the token once if MSF answers 401), is bounded to 1 MiB per call,
+shares the refresh capacity in the hosted service and needs only the read
+scope. It is absent in read-only mode. Ability levels default to the maximum
+for the requested level and gear tier; the reply is trimmed to the build
+coordinates, ability levels, stats and power.
 
 ## What the API describes in addition
 

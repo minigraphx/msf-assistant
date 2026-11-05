@@ -292,6 +292,7 @@ def create_hosted_app(
         PlayerBackend(store, "context", limits),
         refresh=lambda: sync.refresh(_player.get(), admitted=True),
         messages=HOSTED_MESSAGES,
+        query=lambda fn: sync.query(_player.get(), fn),
     )
     app = server.streamable_http_app(
         stateless_http=True,

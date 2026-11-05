@@ -29,6 +29,8 @@ codes or callback URLs into notes.
 4. In Claude: "Call get_status." → `available: false` (no snapshot yet).
 5. "Run refresh_data." → status now `available: true` with a fresh timestamp.
 6. "Show my profile." → A's real profile (name/level/power).
+   "What would my strongest character gain at gear tier 18?" → a
+   `project_character` call with a power figure (live MSF query, read scope).
 7. New conversation: "Who should I upgrade next?" → the assistant follows the
    guide unprompted: reads `get_status`/`get_advisor_context` (or `get_guide`)
    before advising, states the roster age, and asks only decisive questions.

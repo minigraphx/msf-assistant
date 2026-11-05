@@ -3,7 +3,7 @@
 import pytest
 from mcp import Client
 
-from msf_assistant.advisor_instructions import ADVISOR_INSTRUCTIONS, TASK_PROMPTS
+from msf_assistant.advisor_instructions import ADVISOR_INSTRUCTIONS, GUIDE_WORKFLOW, TASK_PROMPTS
 from msf_assistant.mcp_server import create_server
 
 
@@ -17,8 +17,15 @@ def test_instructions_are_english_and_transport_neutral():
     assert ADVISOR_INSTRUCTIONS.startswith("You are")
     assert "Du bist" not in ADVISOR_INSTRUCTIONS
     assert "answer in the user's language" in ADVISOR_INSTRUCTIONS.lower()
-    for tool in ("get_status", "get_advisor_context", "refresh_data", "save_recommendation"):
+    for tool in (
+        "get_status",
+        "get_advisor_context",
+        "refresh_data",
+        "save_recommendation",
+        "project_character",
+    ):
         assert tool in ADVISOR_INSTRUCTIONS
+    assert "project_character" in " ".join(GUIDE_WORKFLOW)
 
 
 @pytest.mark.anyio
@@ -82,7 +89,6 @@ async def test_guide_resource_lists_the_workflow(tmp_path):
 
 
 def test_guide_states_the_hosted_snapshot_ttl():
-    from msf_assistant.advisor_instructions import GUIDE_WORKFLOW
     from msf_assistant.hosted_server import SNAPSHOT_TTL_SECONDS
 
     assert f"{SNAPSHOT_TTL_SECONDS // 86400} days" in " ".join(GUIDE_WORKFLOW)
